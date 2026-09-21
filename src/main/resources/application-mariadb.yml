@@ -1,0 +1,11 @@
+# Activate only after the team's remote schema and account permissions are reviewed.
+spring:
+  datasource:
+    url: jdbc:mariadb://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:rental_system}
+    username: ${DB_USER:teamuser}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: false
