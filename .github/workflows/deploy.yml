@@ -1,0 +1,100 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: cycirental-backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Windows, X64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build
+        shell: powershell
+        run: .\mvnw.cmd -B -DskipTests package
+
+      - name: Deploy
+        shell: powershell
+        env:
+          SPRING_PROFILES_ACTIVE: mariadb
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SERVER_ADDRESS: 0.0.0.0
+          SERVER_PORT: 8081
+
+        run: |
+          $deployDir = "C:\actions-runner\_deploy"
+          New-Item -ItemType Directory -Force -Path $deployDir | Out-Null
+
+          $pidFile = Join-Path $deployDir "app.pid"
+
+          # 이전 자동배포 서버 종료
+          if (Test-Path $pidFile) {
+              $oldPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+
+              if ($oldPid -and (Get-Process -Id $oldPid -ErrorAction SilentlyContinue)) {
+                  Stop-Process -Id $oldPid -Force
+                  Start-Sleep -Seconds 2
+              }
+
+              Remove-Item $pidFile -ErrorAction SilentlyContinue
+          }
+
+          # 다른 프로그램이 8081을 쓰고 있으면 중단
+          $listener = Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue
+
+          if ($listener) {
+              throw "Port 8081 is already in use. Stop the manually started backend first."
+          }
+
+          # 빌드된 JAR 찾기
+          $jar = Get-ChildItem ".\target\*.jar" |
+              Where-Object { $_.Name -notlike "*.original" } |
+              Select-Object -First 1
+
+          if (-not $jar) {
+              throw "Built JAR not found."
+          }
+
+          Copy-Item $jar.FullName (Join-Path $deployDir "app.jar") -Force
+
+          # GitHub Runner가 작업 종료 후 서버 프로세스를 죽이지 않도록 분리
+          $env:RUNNER_TRACKING_ID = "cycirental-backend"
+
+          $process = Start-Process `
+              -FilePath "java" `
+              -ArgumentList "-jar", (Join-Path $deployDir "app.jar") `
+              -WorkingDirectory $deployDir `
+              -WindowStyle Hidden `
+              -PassThru
+
+          $process.Id | Set-Content $pidFile
+
+          Start-Sleep -Seconds 10
+
+          $health = Invoke-RestMethod "http://127.0.0.1:8081/api/health"
+
+          if ($health.status -ne "ok") {
+              throw "Backend health check failed."
+          }
+
+          Write-Host "Deployment successful. PID: $($process.Id)"

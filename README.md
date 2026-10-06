@@ -54,3 +54,6 @@ $env:DB_PASSWORD = "팀에서 받은 비밀번호"
 Spring Boot가 `.env` 파일을 자동으로 읽는 것은 아니므로 IntelliJ 실행 설정 또는 현재 셸의 환경 변수로 값을 전달합니다.
 
 원격 DB 보호를 위해 MariaDB 프로필에서는 Flyway 자동 실행과 Hibernate 자동 DDL을 비활성화했습니다.
+
+
+2026년 9월30일 김명숙 - 셋업확인 완료... 열심히 파이팅!!!
