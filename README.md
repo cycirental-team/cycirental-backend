@@ -72,8 +72,12 @@ cycirental-backend
 │  │  └─ resources
 │  │     ├─ application.yml
 │  │     ├─ application-mariadb.yml
-│  │     └─ db/migration
-│  │        └─ V1__initial_schema.sql
+│  │     └─ db
+│  │        ├─ migration
+│  │        │  ├─ V1__initial_schema.sql
+│  │        │  └─ V2__replace_demo_items.sql
+│  │        └─ manual
+│  │           └─ replace_demo_items.sql
 │  │
 │  └─ test
 │
@@ -129,6 +133,40 @@ GET http://127.0.0.1:8080/api/items/1
 
 현재 구현된 API만 이 문서에 작성하며,
 새 API가 추가되면 실제 코드와 함께 README도 수정합니다.
+
+---
+
+## 구현 완료 기능
+
+| 기능 | 상태 | 구현 내용 |
+| --- | --- | --- |
+| Backend 상태 확인 | 완료 | `GET /api/health`로 서버 실행 상태 확인 |
+| 전체 물품 조회 | 완료 | `GET /api/items`로 DB에 저장된 전체 물품 반환 |
+| 물품 이름 검색 | 완료 | `GET /api/items?query=검색어`로 이름 검색 |
+| 물품 상세 조회 | 완료 | `GET /api/items/{id}`로 단일 물품 조회 |
+| 로컬 Database | 완료 | H2와 Flyway를 이용해 스키마 및 기준 물품 데이터 자동 구성 |
+| 원격 Database 연결 설정 | 완료 | `mariadb` 프로필과 환경 변수로 MariaDB 접속 가능 |
+| 원격 기준 데이터 반영 스크립트 | 완료 | DBeaver에서 검토 후 실행할 수 있는 수동 SQL 제공 |
+
+회원가입·로그인, 대여 신청·반납, 알림 API는 아직 구현 전입니다.
+Frontend의 대여·반납 기능은 해당 API가 추가되기 전까지 앱 내부 임시 상태로 동작합니다.
+
+---
+
+## 현재 물품 기준 데이터
+
+로컬 H2 환경에서는 Flyway `V2__replace_demo_items.sql`이 기존 예시 물품을 제거하고
+다음 5개 물품을 등록합니다.
+
+| 이름 | 카테고리 | 설명 | 전체 수량 | 대여 가능 수량 |
+| --- | --- | --- | ---: | ---: |
+| 4090본체 | 전자기기 | 2210호에 배치된 본체 | 18 | 18 |
+| 4090본체 | 전자기기 | 2211호에 배치된 본체 | 27 | 27 |
+| 모니터 | 전자기기 | 2210호에 배치된 모니터 | 30 | 30 |
+| 모니터 | 전자기기 | 2211호에 배치된 모니터 | 24 | 24 |
+| VR 기기 | 실험/기타 | 3401호에 배치된 VR 기기 | 3 | 3 |
+
+현재는 초기 대여 가능 수량을 전체 수량과 동일하게 설정합니다.
 
 ---
 
@@ -203,6 +241,16 @@ Flyway             : disabled
 `src/main/resources/db/migration`의 Migration 파일은
 로컬 개발 및 스키마 기준 확인 용도로 존재하며,
 현재 원격 MariaDB 프로필에서는 Flyway가 자동 실행되지 않습니다.
+
+원격 MariaDB의 예시 물품을 위 기준 데이터로 교체할 때는
+DBeaver에서 다음 파일을 열어 내용을 확인한 뒤 한 번만 실행합니다.
+
+```text
+src/main/resources/db/manual/replace_demo_items.sql
+```
+
+기존 대여 이력이 교체 대상 물품을 참조하고 있으면 외래 키 제약으로 삭제가 실패합니다.
+이 경우 대여 이력을 임의로 삭제하지 말고 Backend 담당자와 데이터 처리 방식을 먼저 결정합니다.
 
 ---
 
