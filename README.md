@@ -115,8 +115,13 @@ http://127.0.0.1:8080
 | --- | --- | --- |
 | GET | `/api/health` | Backend 정상 실행 여부 확인 |
 | GET | `/api/items` | 전체 물품 조회 |
-| GET | `/api/items?query=검색어` | 물품 이름 검색 |
+| GET | `/api/items?query=검색어` | 물품 이름 검색 (대소문자 무시) |
+| GET | `/api/items?category=카테고리` | 카테고리별 물품 조회 |
+| GET | `/api/items?availableOnly=true` | 대여 가능한 물품만 조회 |
+| GET | `/api/items/categories` | 카테고리 목록 조회 |
 | GET | `/api/items/{id}` | 물품 상세 조회 |
+
+`query`, `category`, `availableOnly`는 함께 사용할 수 있습니다.
 
 예시:
 
@@ -124,6 +129,9 @@ http://127.0.0.1:8080
 GET http://127.0.0.1:8080/api/health
 GET http://127.0.0.1:8080/api/items
 GET http://127.0.0.1:8080/api/items?query=VR
+GET http://127.0.0.1:8080/api/items?category=촬영/영상
+GET http://127.0.0.1:8080/api/items?category=촬영/영상&availableOnly=true
+GET http://127.0.0.1:8080/api/items/categories
 GET http://127.0.0.1:8080/api/items/1
 ```
 
