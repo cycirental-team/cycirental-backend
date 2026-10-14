@@ -1,7 +1,10 @@
 package kr.ac.cyci.deptrental.item;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,38 +17,50 @@ class ItemRepositoryTest {
     ItemRepository items;
 
     @Test
-    @DisplayName("조건 없이 조회하면 전체 6개")
+    @DisplayName("조건 없이 조회하면 전체 물품이 나온다")
     void searchAll() {
-        assertEquals(6, items.search(null, null, false).size());
+        assertEquals(items.count(), items.search(null, null, false).size());
     }
 
     @Test
-    @DisplayName("대여 가능만 보면 4개 (카메라, 노트북 제외)")
+    @DisplayName("대여 가능만 보면 남은 수량이 1 이상인 물품만 나온다")
     void searchAvailableOnly() {
-        assertEquals(4, items.search(null, null, true).size());
+        List<Item> result = items.search(null, null, true);
+        long expected = items.findAll().stream()
+                .filter(item -> item.getAvailableQuantity() > 0)
+                .count();
+        assertEquals(expected, result.size());
+        assertTrue(result.stream().allMatch(item -> item.getAvailableQuantity() > 0));
     }
 
     @Test
-    @DisplayName("촬영/영상 카테고리는 3개")
+    @DisplayName("카테고리를 고르면 그 카테고리 물품만 나온다")
     void searchByCategory() {
-        assertEquals(3, items.search(null, "촬영/영상", false).size());
+        List<Item> result = items.search(null, "전자기기", false);
+        assertFalse(result.isEmpty());
+        assertTrue(result.stream().allMatch(item -> item.getCategory().equals("전자기기")));
     }
 
     @Test
-    @DisplayName("촬영/영상 + 대여 가능은 2개 (삼각대, 조명 세트)")
+    @DisplayName("카테고리와 대여 가능을 같이 쓰면 두 조건을 모두 만족한다")
     void searchByCategoryAndAvailable() {
-        assertEquals(2, items.search(null, "촬영/영상", true).size());
+        List<Item> result = items.search(null, "전자기기", true);
+        assertTrue(result.stream().allMatch(item ->
+                item.getCategory().equals("전자기기") && item.getAvailableQuantity() > 0));
     }
 
     @Test
-    @DisplayName("이름 검색은 대소문자 무시 (vr → VR 기기)")
+    @DisplayName("이름 검색은 대소문자를 무시한다 (vr → VR 기기)")
     void searchByNameIgnoreCase() {
-        assertEquals(1, items.search("vr", null, false).size());
+        List<Item> result = items.search("vr", null, false);
+        assertFalse(result.isEmpty());
+        assertTrue(result.stream().allMatch(item -> item.getName().toLowerCase().contains("vr")));
     }
 
     @Test
-    @DisplayName("카테고리 목록은 3개")
+    @DisplayName("카테고리 목록은 중복 없이 모든 카테고리를 담는다")
     void categories() {
-        assertEquals(3, items.findAllCategories().size());
+        long expected = items.findAll().stream().map(Item::getCategory).distinct().count();
+        assertEquals(expected, items.findAllCategories().size());
     }
 }

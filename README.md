@@ -133,8 +133,8 @@ http://127.0.0.1:8080
 GET http://127.0.0.1:8080/api/health
 GET http://127.0.0.1:8080/api/items
 GET http://127.0.0.1:8080/api/items?query=VR
-GET http://127.0.0.1:8080/api/items?category=촬영/영상
-GET http://127.0.0.1:8080/api/items?category=촬영/영상&availableOnly=true
+GET http://127.0.0.1:8080/api/items?category=전자기기
+GET http://127.0.0.1:8080/api/items?category=전자기기&availableOnly=true
 GET http://127.0.0.1:8080/api/items/categories
 GET http://127.0.0.1:8080/api/items/1
 ```
@@ -151,6 +151,9 @@ GET http://127.0.0.1:8080/api/items/1
 | Backend 상태 확인 | 완료 | `GET /api/health`로 서버 실행 상태 확인 |
 | 전체 물품 조회 | 완료 | `GET /api/items`로 DB에 저장된 전체 물품 반환 |
 | 물품 이름 검색 | 완료 | `GET /api/items?query=검색어`로 이름 검색 |
+| 카테고리별 물품 조회 | 완료 | `GET /api/items?category=카테고리`로 카테고리 필터 |
+| 대여 가능 물품 조회 | 완료 | `GET /api/items?availableOnly=true`로 남은 수량이 있는 물품만 조회 |
+| 카테고리 목록 조회 | 완료 | `GET /api/items/categories`로 카테고리 목록 반환 |
 | 물품 상세 조회 | 완료 | `GET /api/items/{id}`로 단일 물품 조회 |
 | 로컬 Database | 완료 | H2와 Flyway를 이용해 스키마 및 기준 물품 데이터 자동 구성 |
 | 원격 Database 연결 설정 | 완료 | `mariadb` 프로필과 환경 변수로 MariaDB 접속 가능 |
