@@ -1,0 +1,2 @@
+ALTER TABLE users ALTER COLUMN id RENAME TO user_id;
+ALTER TABLE users ALTER COLUMN student_id RENAME TO login_id;
