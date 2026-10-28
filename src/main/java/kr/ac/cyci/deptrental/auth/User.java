@@ -10,7 +10,7 @@ public class User {
     private Long id;
 
     @Column(name = "login_id", nullable = false, unique = true)
-    private String loginId;g
+    private String loginId;
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
     @Column(name = "display_name", nullable = false)
