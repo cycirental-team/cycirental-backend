@@ -118,6 +118,38 @@ http://127.0.0.1:8080
 | GET | `/api/items?query=검색어` | 물품 이름 검색 |
 | GET | `/api/items/{id}` | 물품 상세 조회 |
 
+### 인증 API
+
+인증 기능은 `auth` 모듈에 분리되어 있습니다. 비밀번호 원문이나 재설정 토큰 원문은 DB에 저장하지 않습니다.
+
+| Method | Endpoint | 설명 |
+| --- | --- | --- |
+| POST | `/api/auth/signup` | 회원가입 |
+| POST | `/api/auth/login` | 로그인 및 Bearer 액세스 토큰 발급 (7일) |
+| POST | `/api/auth/logout` | 현재 Bearer 토큰 폐기 |
+| POST | `/api/auth/find-id` | 이름과 이메일로 학번/아이디 찾기 |
+| POST | `/api/auth/password-reset/requests` | 비밀번호 재설정 메일 요청 |
+| POST | `/api/auth/password-reset` | 재설정 토큰으로 비밀번호 변경 |
+
+회원가입 요청 예시:
+
+```json
+{
+  "loginId": "new_student",
+  "password": "safe-password",
+  "displayName": "홍길동",
+  "email": "student@example.com"
+}
+```
+
+로그인 응답의 `accessToken`은 이후 보호 API 호출 시 다음과 같이 보냅니다.
+
+```text
+Authorization: Bearer {accessToken}
+```
+
+비밀번호 재설정은 계정 존재 여부를 노출하지 않도록 언제나 `202 Accepted`를 반환합니다. 현재 기본 알림 구현은 토큰을 발송하지 않는 안전한 자리표시자입니다. 실제 운영 전에는 `PasswordResetNotifier`를 이메일(SMTP, SendGrid 등) 구현체로 교체·설정해야 재설정 링크가 사용자에게 전달됩니다.
+
 예시:
 
 ```text
