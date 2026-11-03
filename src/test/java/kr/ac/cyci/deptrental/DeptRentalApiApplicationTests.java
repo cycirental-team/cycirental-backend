@@ -43,13 +43,12 @@ class DeptRentalApiApplicationTests {
 
 	@Test
 	void signUpAndLoginUseLoginIdWhileUserIdRemainsNumericPrimaryKey() {
-		authService.signUp(new SignUpRequest(
-				"new_student", "password123", "테스트 학생", "student@example.com"));
+		authService.signUp(new SignUpRequest("password123", "테스트 학생", "20260004", "01012345678"));
 
-		AuthResponse response = authService.login(new LoginRequest("new_student", "password123"));
+		AuthResponse response = authService.login(new LoginRequest("20260004", "password123"));
 
 		assertNotNull(response.userId());
-		assertEquals("new_student", response.loginId());
+		assertEquals("20260004", response.loginId());
 		assertEquals("테스트 학생", response.displayName());
 	}
 

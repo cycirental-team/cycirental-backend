@@ -64,6 +64,7 @@ cycirental-backend
 │  │  │  └─ kr/ac/cyci/deptrental
 │  │  │     ├─ DeptRentalApiApplication.java
 │  │  │     ├─ HealthController.java
+│  │  │     ├─ auth  # 학번 인증·관리자 초기화
 │  │  │     └─ item
 │  │  │        ├─ Item.java
 │  │  │        ├─ ItemController.java
@@ -75,7 +76,8 @@ cycirental-backend
 │  │     └─ db
 │  │        ├─ migration
 │  │        │  ├─ V1__initial_schema.sql
-│  │        │  └─ V2__replace_demo_items.sql
+│  │        │  ├─ V2__replace_demo_items.sql
+│  │        │  └─ V3~V8 인증·원격 매핑·학번·초기화·전화번호·001 제약 변경
 │  │        └─ manual
 │  │           └─ replace_demo_items.sql
 │  │
@@ -129,25 +131,24 @@ http://127.0.0.1:8080
 
 ### 인증 API
 
-인증 기능은 `auth` 모듈에 분리되어 있습니다. 비밀번호 원문과 액세스·재설정 토큰 원문은 DB에 저장하지 않습니다.
+인증 기능은 `auth` 모듈에 분리되어 있습니다. 비밀번호 원문과 액세스 토큰 원문은 DB에 저장하지 않습니다. 관리자 초기화의 임시 비밀번호도 해시만 저장합니다.
 
 | Method | Endpoint | 설명 |
 | --- | --- | --- |
 | POST | `/api/auth/signup` | 회원가입 |
 | POST | `/api/auth/login` | 로그인 및 Bearer 액세스 토큰 발급 (7일) |
 | POST | `/api/auth/logout` | 현재 Bearer 토큰 폐기 |
-| POST | `/api/auth/find-id` | 이름과 이메일로 학번/아이디 찾기 |
-| POST | `/api/auth/password-reset/requests` | 비밀번호 재설정 메일 요청 |
-| POST | `/api/auth/password-reset` | 재설정 토큰으로 비밀번호 변경 |
+| POST | `/api/auth/password-reset/requests` | 이름·학번으로 관리자 초기화 요청 |
+| POST | `/api/auth/password/change` | 인증 후 비밀번호 변경 |
 
 회원가입 요청 예시:
 
 ```json
 {
-  "loginId": "new_student",
   "password": "safe-password",
   "displayName": "홍길동",
-  "email": "student@example.com"
+  "studentNumber": "20260001",
+  "phoneNumber": "01012345678"
 }
 ```
 
@@ -157,7 +158,7 @@ http://127.0.0.1:8080
 Authorization: Bearer {accessToken}
 ```
 
-비밀번호 재설정은 계정 존재 여부를 노출하지 않도록 언제나 `202 Accepted`를 반환합니다. 현재 기본 알림 구현은 토큰을 발송하지 않는 안전한 자리표시자입니다. 실제 운영 전에는 `PasswordResetNotifier`를 이메일(SMTP, SendGrid 등) 구현체로 교체·설정해야 재설정 링크가 사용자에게 전달됩니다.
+비밀번호 초기화는 아래의 학번 로그인·관리자 처리 절차를 사용합니다. 이메일 발송과 기존 재설정 토큰 방식은 사용하지 않습니다.
 
 예시:
 
@@ -192,8 +193,8 @@ GET http://127.0.0.1:8080/api/items/1
 | 원격 기준 데이터 반영 스크립트 | 완료 | DBeaver에서 검토 후 실행할 수 있는 수동 SQL 제공 |
 | 회원가입·로그인 | 완료 | 비밀번호 해시 저장, 로그인 및 Bearer 토큰 발급 |
 | 로그아웃 | 완료 | 발급된 Bearer 토큰 폐기 |
-| 아이디 찾기 | 완료 | 이름과 이메일이 일치하는 계정의 아이디 조회 |
-| 비밀번호 재설정 기반 기능 | 부분 완료 | 토큰 생성·검증 구현, 실제 이메일 발송 연동 필요 |
+| 아이디 찾기 | 제거 | 학번을 로그인 아이디로 사용 |
+| 비밀번호 초기화 | 로컬 구현 | 관리자 본인 확인·임시 비밀번호·변경 강제, 배포 전 |
 
 대여 신청·반납, 알림 API는 아직 구현 전입니다.
 Frontend의 대여·반납 기능은 해당 API가 추가되기 전까지 앱 내부 임시 상태로 동작합니다.
@@ -442,3 +443,39 @@ Backend 구조 또는 실행 방식이 변경된 경우 README도 함께 수정�
 ## 확인 기록
 
 - 2026년 9월30일 김명숙 - 셋업확인 완료... 열심히 파이팅!!!
+
+## 인증 스키마와 관리자 초기화
+
+| 작업 | API | 요청 / 응답 |
+| --- | --- | --- |
+| 가입 | POST /api/auth/signup | displayName, studentNumber, phoneNumber, password → 201 |
+| 로그인 | POST /api/auth/login | studentNumber, password → 사용자·토큰 → 200 |
+| 로그아웃 | POST /api/auth/logout | Bearer 토큰 → 204 |
+| 초기화 요청 | POST /api/auth/password-reset/requests | displayName, studentNumber → 202 |
+| 관리자 대기 목록 | GET /api/admin/password-reset-requests | Bearer 토큰 → 오래된 순 최대 100건 |
+| 관리자 초기화 | POST /api/admin/password-reset-requests/{id}/approve | Bearer + identityConfirmed:true → temporaryPassword, expiresAt |
+| 관리자 거절 | POST /api/admin/password-reset-requests/{id}/reject | Bearer → 200 |
+| 비밀번호 변경 | POST /api/auth/password/change | Bearer + currentPassword, newPassword → 새 사용자·토큰 → 200 |
+
+회원가입은 이름 / 학번 / 전화번호 / 비밀번호 / 비밀번호 확인을 입력합니다. 요청에는 확인용 비밀번호를 보내지 않습니다.
+이름은 2~30자, 일반 학번은 숫자 6~12자리, 비밀번호는 8~64자입니다. 전화번호는 국내 휴대전화번호를 숫자 10~11자리로 받습니다. 학번과 전화번호는 앞자리 0을 보존하는 문자열입니다.
+학번을 로그인 아이디로 사용하며 별도 아이디·이메일 입력과 아이디 찾기는 제거했습니다. 새 계정은 학생 권한으로만 생성됩니다.
+예약 관리자 학번 `001`은 로그인·초기화 요청에서만 예외로 허용합니다. 일반 회원가입으로 만들 수 없고, DB의 관리자 계정과 서버 인증 성공 응답이 필요합니다. 앱에 고정 로그인 우회는 없습니다.
+
+초기화는 이름·학번으로 요청한 뒤 관리자가 학생증 등으로 본인을 확인해 처리합니다. 이름·학번·전화번호 입력만으로 본인 인증을 완료한 것으로 보지 않습니다.
+계정이 없거나 정보가 달라도 요청 응답은 같은 202이며, 동일 계정의 대기 요청은 중복 생성하지 않습니다.
+관리자 승인 시 서버가 무작위 임시 비밀번호를 만들고 해시만 저장합니다. 임시 비밀번호는 24시간 유효하며 관리자 화면에 한 번 표시하므로 본인에게 별도로 전달합니다. 문자 발송·전화번호 인증은 연결하지 않았습니다.
+초기화 시 기존 세션을 폐기합니다. `mustChangePassword=true`로 로그인하면 홈 진입 전 새 비밀번호 설정을 완료해야 합니다. 서버도 변경 전 관리자 API 사용을 거부합니다.
+변경 완료 시 기존 세션을 폐기하고 새 토큰을 발급합니다. 일반 로그인 토큰은 7일 유효합니다. 기존 토큰 방식의 POST /api/auth/password-reset은 410, /api/auth/find-id는 제거 상태입니다.
+
+예약 관리자 초기 계정 `001 / admin`은 검토한 수동 SQL로만 등록합니다. 앱에 비밀번호를 하드코딩하거나 Flyway 실행 시 기본 계정을 생성하지 않습니다.
+기존 001 계정이 있으면 덮어쓰기·비밀번호 변경·권한 승격 없이 별도 확인합니다.
+
+로컬 H2는 Flyway V1~V8을 사용합니다. 기존 V1~V3을 수정하지 않고 V4~V8로 전진 변경했습니다.
+원격 MariaDB는 `ddl-auto: none`, Flyway 비활성화 상태이므로 main 자동 배포만으로 DB가 바뀌지 않습니다.
+학번·전화번호·초기화 구조의 수동 적용과 백업 절차는 [REMOTE_SCHEMA_ALIGNMENT.md](REMOTE_SCHEMA_ALIGNMENT.md)를 확인합니다.
+로컬 코드 검증·Git 전 준비는 [RELEASE_PREPARATION.md](RELEASE_PREPARATION.md)를 확인합니다.
+
+2026-11-03 로컬 검증 기록: 백엔드 테스트 22개 통과. 원격 적용과 배포 성공은 별도로 기록해야 합니다.
+
+원격 반영 기록(2026-11-03): DB 백업과 학번·전화번호·초기화 스키마 적용·기존 행 수 보존 검증을 완료했습니다. 001 관리자 계정 생성과 관리자 권한 검증까지 완료했습니다. 새 백엔드 배포와 실폰 로그인 검증은 별도 단계입니다. 자세한 상태는 REMOTE_SCHEMA_ALIGNMENT.md를 확인합니다.

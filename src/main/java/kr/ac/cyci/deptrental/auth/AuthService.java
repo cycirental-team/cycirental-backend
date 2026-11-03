@@ -2,77 +2,98 @@ package kr.ac.cyci.deptrental.auth;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import kr.ac.cyci.deptrental.auth.dto.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-@Service
-@Transactional
+@Service @Transactional
 public class AuthService {
     private final UserRepository users;
     private final AuthSessionRepository sessions;
-    private final PasswordResetTokenRepository resetTokens;
-    private final PasswordHasher passwordHasher;
-    private final TokenGenerator tokenGenerator;
-    private final PasswordResetNotifier resetNotifier;
-
-    public AuthService(UserRepository users, AuthSessionRepository sessions, PasswordResetTokenRepository resetTokens,
-                       PasswordHasher passwordHasher, TokenGenerator tokenGenerator, PasswordResetNotifier resetNotifier) {
-        this.users = users; this.sessions = sessions; this.resetTokens = resetTokens;
-        this.passwordHasher = passwordHasher; this.tokenGenerator = tokenGenerator; this.resetNotifier = resetNotifier;
+    private final AccountRecoveryRepository recovery;
+    private final PasswordHasher passwords;
+    private final TokenGenerator tokens;
+    public AuthService(UserRepository users,AuthSessionRepository sessions,AccountRecoveryRepository recovery,
+                       PasswordHasher passwords,TokenGenerator tokens) {
+        this.users=users; this.sessions=sessions; this.recovery=recovery; this.passwords=passwords; this.tokens=tokens;
     }
-
     public void signUp(SignUpRequest request) {
-        String loginId = request.loginId().trim();
-        String email = request.email().trim().toLowerCase();
-        if (users.existsByLoginId(loginId)) throw conflict("이미 사용 중인 아이디입니다.");
-        if (users.existsByEmail(email)) throw conflict("이미 사용 중인 이메일입니다.");
-        users.save(new User(loginId, passwordHasher.hash(request.password()), request.displayName().trim(), email));
+        String number=request.studentNumber();
+        if(users.existsByStudentNumber(number) || users.existsByLoginId(number))
+            throw error(HttpStatus.CONFLICT,"이미 등록된 학번입니다. 기존 계정은 관리자에게 확인해 주세요.");
+        users.save(new User(number,passwords.hash(request.password()),request.displayName().trim(),number,request.phoneNumber()));
     }
-
     public AuthResponse login(LoginRequest request) {
-        User user = users.findByLoginId(request.loginId().trim())
-                .orElseThrow(() -> unauthorized("아이디 또는 비밀번호가 올바르지 않습니다."));
-        if (!passwordHasher.matches(request.password(), user.getPasswordHash())) throw unauthorized("아이디 또는 비밀번호가 올바르지 않습니다.");
-        String token = tokenGenerator.create();
-        sessions.save(new AuthSession(tokenGenerator.hash(token), user, Instant.now().plus(7, ChronoUnit.DAYS)));
-        return new AuthResponse(user.getId(), user.getLoginId(), user.getDisplayName(), token, "Bearer");
+        User user=users.findByStudentNumber(request.studentNumber()).orElseThrow(this::invalidLogin);
+        if("001".equals(request.studentNumber()) && !user.isAdmin()) throw invalidLogin();
+        if(!passwords.matches(request.password(),user.getPasswordHash())) throw invalidLogin();
+        if(user.temporaryPasswordExpired(Instant.now())) throw error(HttpStatus.UNAUTHORIZED,"임시 비밀번호가 만료되었습니다. 초기화를 다시 요청해 주세요.");
+        return issueSession(user);
     }
-
-    @Transactional(readOnly = true)
-    public String findId(FindIdRequest request) {
-        return users.findByEmailAndDisplayName(request.email().trim().toLowerCase(), request.displayName().trim())
-                .map(User::getLoginId).orElseThrow(() -> notFound("일치하는 회원 정보를 찾을 수 없습니다."));
+    private ResponseStatusException invalidLogin(){return error(HttpStatus.UNAUTHORIZED,"학번 또는 비밀번호가 올바르지 않습니다.");}
+    private AuthResponse issueSession(User user) {
+        String token=tokens.create();
+        sessions.save(new AuthSession(tokens.hash(token),user,Instant.now().plus(user.mustChangePassword()?1:7,ChronoUnit.DAYS)));
+        return new AuthResponse(user.getId(),user.getLoginId(),user.getDisplayName(),token,"Bearer",user.isAdmin(),user.getStudentNumber(),user.mustChangePassword());
     }
-
     public void requestPasswordReset(PasswordResetRequest request) {
-        users.findByLoginId(request.loginId().trim())
-                .filter(user -> user.getEmail().equalsIgnoreCase(request.email().trim()))
-                .ifPresent(user -> {
-                    String token = tokenGenerator.create();
-                    resetTokens.save(new PasswordResetToken(tokenGenerator.hash(token), user, Instant.now().plus(30, ChronoUnit.MINUTES)));
-                    resetNotifier.send(user.getEmail(), token);
-                });
+        // Lock the account so simultaneous requests cannot create duplicate pending rows.
+        users.lockByStudentNumber(request.studentNumber())
+            .filter(user -> request.displayName().trim().equals(user.getDisplayName()))
+            .ifPresent(user -> {
+                if(!recovery.existsByUserAndStatus(user,"PENDING")) recovery.save(new AccountRecoveryRequest(user));
+            });
     }
-
-    public void resetPassword(PasswordResetConfirmRequest request) {
-        PasswordResetToken resetToken = resetTokens.findByTokenHash(tokenGenerator.hash(request.token()))
-                .filter(token -> token.isUsable(Instant.now()))
-                .orElseThrow(() -> badRequest("유효하지 않거나 만료된 비밀번호 재설정 요청입니다."));
-        resetToken.getUser().changePassword(passwordHasher.hash(request.newPassword()));
-        resetToken.markUsed(Instant.now());
+    private User authenticate(String token) {
+        if(token==null || token.isBlank()) throw error(HttpStatus.UNAUTHORIZED,"다시 로그인해 주세요.");
+        AuthSession session=sessions.findByTokenHash(tokens.hash(token))
+            .filter(s -> !s.isExpired(Instant.now()))
+            .orElseThrow(() -> error(HttpStatus.UNAUTHORIZED,"로그인이 만료되었습니다. 다시 로그인해 주세요."));
+        User user=session.getUser();
+        if(user.temporaryPasswordExpired(Instant.now())) throw error(HttpStatus.UNAUTHORIZED,"임시 비밀번호가 만료되었습니다.");
+        return user;
     }
-
-    public void logout(String accessToken) {
-        if (accessToken != null && !accessToken.isBlank()) {
-            sessions.deleteByTokenHash(tokenGenerator.hash(accessToken));
+    private User requireAdmin(String token) {
+        User user=authenticate(token);
+        if(!user.isAdmin() || user.mustChangePassword()) throw error(HttpStatus.FORBIDDEN,"관리자 권한과 비밀번호 변경 완료가 필요합니다.");
+        return user;
+    }
+    public record RecoveryView(Long id,String displayName,String studentNumber,Instant requestedAt,String status) { }
+    public List<RecoveryView> listRecovery(String token) {
+        requireAdmin(token);
+        return recovery.findTop100ByStatusOrderByRequestedAtAsc("PENDING").stream()
+            .map(r -> new RecoveryView(r.getId(),r.getUser().getDisplayName(),r.getUser().getStudentNumber(),r.getRequestedAt(),r.getStatus())).toList();
+    }
+    public record TemporaryPassword(String temporaryPassword,Instant expiresAt) { }
+    public TemporaryPassword processRecovery(String token,Long id,boolean approve,boolean identityConfirmed) {
+        User admin=requireAdmin(token);
+        AccountRecoveryRequest request=recovery.lockById(id).orElseThrow(() -> error(HttpStatus.NOT_FOUND,"요청을 찾을 수 없습니다."));
+        if(!request.getStatus().equals("PENDING")) throw error(HttpStatus.CONFLICT,"이미 처리된 요청입니다.");
+        if(approve && !identityConfirmed) throw error(HttpStatus.BAD_REQUEST,"본인 확인을 먼저 완료해 주세요.");
+        TemporaryPassword result=null;
+        if(approve) {
+            User user=users.lockByStudentNumber(request.getUser().getStudentNumber()).orElseThrow();
+            String password=tokens.create();
+            Instant expiry=Instant.now().plus(1,ChronoUnit.DAYS);
+            user.issueTemporaryPassword(passwords.hash(password),expiry);
+            sessions.deleteByUser(user);
+            result=new TemporaryPassword(password,expiry);
         }
+        request.finish(admin,approve);
+        return result;
     }
-
-    private ResponseStatusException conflict(String message) { return new ResponseStatusException(HttpStatus.CONFLICT, message); }
-    private ResponseStatusException unauthorized(String message) { return new ResponseStatusException(HttpStatus.UNAUTHORIZED, message); }
-    private ResponseStatusException notFound(String message) { return new ResponseStatusException(HttpStatus.NOT_FOUND, message); }
-    private ResponseStatusException badRequest(String message) { return new ResponseStatusException(HttpStatus.BAD_REQUEST, message); }
+    public AuthResponse changePassword(String token,ChangePasswordRequest request) {
+        User authenticated=authenticate(token);
+        User user=users.lockByStudentNumber(authenticated.getStudentNumber()).orElseThrow();
+        if(!passwords.matches(request.currentPassword(),user.getPasswordHash())) throw error(HttpStatus.BAD_REQUEST,"현재 비밀번호를 확인해 주세요.");
+        if(request.newPassword().equals(request.currentPassword())) throw error(HttpStatus.BAD_REQUEST,"다른 새 비밀번호를 입력해 주세요.");
+        user.changePassword(passwords.hash(request.newPassword()));
+        sessions.deleteByUser(user);
+        return issueSession(user);
+    }
+    public void logout(String token) { if(token!=null && !token.isBlank()) sessions.deleteByTokenHash(tokens.hash(token)); }
+    private ResponseStatusException error(HttpStatus status,String message){ return new ResponseStatusException(status,message); }
 }

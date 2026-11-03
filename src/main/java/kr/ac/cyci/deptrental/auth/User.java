@@ -6,29 +6,48 @@ import jakarta.persistence.*;
 @Table(name = "users")
 public class User {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
+    @Column(name = "user_id")
     private Long id;
 
-    @Column(name = "student_id", nullable = false, unique = true)
+    @Column(name = "login_id", nullable = false, unique = true, length = 50)
     private String loginId;
-    @Column(name = "password_hash", nullable = false)
+    @Column(name = "password", nullable = false)
     private String passwordHash;
-    @Column(name = "display_name", nullable = false)
+    @Column(name = "user_name", nullable = false, length = 50)
     private String displayName;
-    @Column(nullable = false, unique = true)
-    private String email;
+    @Column(name = "student_number", unique = true, length = 12)
+    private String studentNumber;
 
+    @Column(name = "is_admin", nullable = false)
+    private boolean admin = false;
+
+    @Column(name="must_change_password", nullable=false)
+    private boolean mustChangePassword;
+    @Column(name="temporary_password_expires_at")
+    private java.time.Instant temporaryPasswordExpiresAt;
+    public boolean mustChangePassword() { return mustChangePassword; }
+    public boolean temporaryPasswordExpired(java.time.Instant now) {
+        return mustChangePassword && (temporaryPasswordExpiresAt == null || !temporaryPasswordExpiresAt.isAfter(now));
+    }
+    public void issueTemporaryPassword(String hash, java.time.Instant expiry) {
+        passwordHash=hash; mustChangePassword=true; temporaryPasswordExpiresAt=expiry;
+    }
+    @Column(name="phone_number", length=11)
+    private String phoneNumber;
+    public String getPhoneNumber() { return phoneNumber; }
     protected User() { }
-    public User(String loginId, String passwordHash, String displayName, String email) {
+    public User(String loginId, String passwordHash, String displayName, String studentNumber, String phoneNumber) {
         this.loginId = loginId;
         this.passwordHash = passwordHash;
         this.displayName = displayName;
-        this.email = email;
+        this.studentNumber = studentNumber;
+        this.phoneNumber = phoneNumber;
     }
     public Long getId() { return id; }
     public String getLoginId() { return loginId; }
     public String getPasswordHash() { return passwordHash; }
     public String getDisplayName() { return displayName; }
-    public String getEmail() { return email; }
-    public void changePassword(String passwordHash) { this.passwordHash = passwordHash; }
+    public String getStudentNumber() { return studentNumber; }
+    public boolean isAdmin() { return admin; }
+    public void changePassword(String passwordHash) { this.passwordHash = passwordHash; mustChangePassword=false; temporaryPasswordExpiresAt=null; }
 }
