@@ -11,9 +11,9 @@ public class User {
 
     @Column(name = "login_id", nullable = false, unique = true)
     private String loginId;
-    @Column(name = "password_hash", nullable = false)
+    @Column(name = "password", nullable = false)
     private String passwordHash;
-    @Column(name = "display_name", nullable = false)
+    @Column(name = "user_name", nullable = false)
     private String displayName;
     @Column(nullable = false, unique = true)
     private String email;
