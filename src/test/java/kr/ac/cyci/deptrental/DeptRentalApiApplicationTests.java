@@ -4,13 +4,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import kr.ac.cyci.deptrental.item.ItemRepository;
+import kr.ac.cyci.deptrental.auth.AuthService;
+import kr.ac.cyci.deptrental.auth.dto.AuthResponse;
+import kr.ac.cyci.deptrental.auth.dto.LoginRequest;
+import kr.ac.cyci.deptrental.auth.dto.SignUpRequest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringBootTest
 class DeptRentalApiApplicationTests {
 	@Autowired
 	ItemRepository items;
+
+	@Autowired
+	AuthService authService;
 
 	@Test
 	void contextLoads() {
@@ -31,6 +39,17 @@ class DeptRentalApiApplicationTests {
 				item.getDescription().contains("3401호") &&
 				item.getTotalQuantity() == 3 &&
 				item.getAvailableQuantity() == 3));
+	}
+
+	@Test
+	void signUpAndLoginUseLoginIdWhileUserIdRemainsNumericPrimaryKey() {
+		authService.signUp(new SignUpRequest("password123", "테스트 학생", "20260004", "01012345678"));
+
+		AuthResponse response = authService.login(new LoginRequest("20260004", "password123"));
+
+		assertNotNull(response.userId());
+		assertEquals("20260004", response.loginId());
+		assertEquals("테스트 학생", response.displayName());
 	}
 
 }
