@@ -280,6 +280,22 @@ Spring Boot는 `.env` 파일을 자동으로 읽지 않습니다.
 
 환경 변수는 현재 PowerShell 세션 또는 IntelliJ 실행 설정을 통해 전달합니다.
 
+#### IntelliJ에서 원격 DB로 실행하기
+
+백엔드 폴더에서 다음 설정 도구를 실행합니다. 호스트·포트·DB 이름·사용자와 비밀번호는 창에서 입력하며 비밀번호는 가려집니다.
+
+```powershell
+.\tool\configure_mariadb.cmd
+```
+
+도구는 이 PC에만 사용하는 `.run/DeptRental_MariaDB.local.run.xml` 실행 설정을 만듭니다. 이 파일과 `.env`는 Git에서 제외됩니다. 비밀번호는 이 로컬 실행 설정에 저장되므로 해당 파일을 공유하지 않습니다.
+
+IntelliJ 상단에서 **DeptRental - MariaDB (local 8080)**을 선택합니다. 기존 8080 백엔드를 Stop한 뒤 새 설정으로 Run합니다. 새 설정이 보이지 않으면 File → Reload All from Disk로 프로젝트 파일을 새로 읽습니다.
+
+이 실행 설정은 `mariadb` 프로필과 DB 환경 변수를 적용하고 로컬 API 포트는 8080을 유지합니다. 따라서 Android Medium Phone의 프론트 기본 주소 `http://10.0.2.2:8080`은 바꿀 필요가 없습니다. 백엔드가 PC의 8080에서 요청을 받고 원격 MariaDB에 저장합니다.
+
+기본 **DeptRentalApiApplication** 실행 항목과 Maven 테스트는 여전히 H2를 사용할 수 있습니다. 가입 성공 여부만 보지 말고, 실행 프로필과 연결 DB가 의도한 MariaDB인지 확인합니다. H2에 가입했던 계정이 원격 DB로 자동 복사되지는 않습니다. 원격 프로필은 기존과 같이 Flyway 비활성화·`ddl-auto: none`을 유지해 테이블을 자동 변경하지 않습니다.
+
 실제 DB 주소, 계정 및 비밀번호는 GitHub에 Commit하지 않습니다.
 
 ---
