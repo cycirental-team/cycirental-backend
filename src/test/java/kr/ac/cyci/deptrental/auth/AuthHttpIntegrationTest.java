@@ -69,6 +69,43 @@ class AuthHttpIntegrationTest {
     org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Test
+    void legacyFrontendPayloadIsRejectedAndFourFieldSignupMapsToExistingColumns() throws Exception {
+        long before = jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class);
+        var legacy = post("/api/auth/signup", """
+            {"loginId":"old_student","email":"unused@example.invalid","displayName":"기존 화면","password":"password123"}
+            """);
+        assertEquals(400, legacy.statusCode());
+        assertTrue(legacy.body().contains("학번을 입력해 주세요."));
+        assertTrue(legacy.body().contains("전화번호를 입력해 주세요."));
+        assertEquals(before, jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class));
+
+        var signup = post("/api/auth/signup", """
+            {"displayName":"연동 학생","studentNumber":"000202611004","password":"password123","phoneNumber":"01000000000"}
+            """);
+        assertEquals(201, signup.statusCode());
+        assertEquals(before + 1, jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class));
+        var row = jdbc.queryForMap("SELECT user_name, login_id, phone_number, password, is_admin FROM users WHERE student_number = ?", "000202611004");
+        assertEquals("연동 학생", row.get("user_name"));
+        assertEquals("000202611004", row.get("login_id"));
+        assertEquals("01000000000", row.get("phone_number"));
+        assertNotEquals("password123", row.get("password"));
+        assertEquals(false, row.get("is_admin"));
+
+        var oldLogin = post("/api/auth/login", """
+            {"loginId":"000202611004","password":"password123"}
+            """);
+        assertEquals(400, oldLogin.statusCode());
+        assertTrue(oldLogin.body().contains("학번을 입력해 주세요."));
+        var login = post("/api/auth/login", """
+            {"studentNumber":"000202611004","password":"password123"}
+            """);
+        assertEquals(200, login.statusCode());
+        assertTrue(login.body().contains("\"displayName\":\"연동 학생\""));
+        assertTrue(login.body().contains("\"studentNumber\":\"000202611004\""));
+        assertTrue(login.body().contains("\"accessToken\":"));
+    }
+
+    @Test
     void reservedAdminUsesDatabasePasswordAndCannotBeCreatedBySignup() throws Exception {
         var sql = new org.springframework.core.io.ClassPathResource("db/manual/create_reserved_admin_001.sql")
             .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);

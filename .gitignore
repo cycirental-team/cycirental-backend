@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Private DB credentials and machine-specific run configurations
+.env
+.env.*
+!.env.example
+/.run/*.local.run.xml
