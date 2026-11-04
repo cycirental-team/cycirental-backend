@@ -152,6 +152,16 @@ http://127.0.0.1:8080
 }
 ```
 
+로그인은 `studentNumber`와 `password`를 보냅니다. 이전 프론트의 `loginId`·`email` 요청 형식은 현재 계약과 다르며 필수 학번·전화번호가 빠지면 400으로 응답합니다.
+
+```json
+{"studentNumber":"20260001","password":"safe-password"}
+```
+
+`displayName`은 API 필드명이며 DB의 기존 `users.user_name` 컬럼에 저장됩니다. `studentNumber`는 `student_number`, `phoneNumber`는 `phone_number`에 저장하고 기존 이메일 데이터는 보존합니다. 일반 가입은 학생 권한으로 생성하며 비밀번호는 해시로 저장합니다.
+
+Android Medium Phone에서 로컬 백엔드에 접근할 때 프론트 공용 기본값은 `http://10.0.2.2:8080`이고 백엔드 기본 포트는 8080입니다. 배포 서버의 8081 포트는 별도 실행 설정이며, 배포 포트에 맞춘다고 로컬 기본값을 함께 바꾸지 않습니다. 다른 주소는 프론트의 로컬 `API_BASE_URL` 설정으로만 전달합니다.
+
 로그인 응답의 `accessToken`은 이후 보호 API 호출 시 다음과 같이 보냅니다.
 
 ```text
