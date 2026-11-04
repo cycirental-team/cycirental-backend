@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class UnavailablePasswordResetNotifier implements PasswordResetNotifier {
     private static final Logger log = LoggerFactory.getLogger(UnavailablePasswordResetNotifier.class);
-    @Override public void send(String email, String resetToken) {
-        log.warn("Password reset requested for {} but no email provider is configured", email);
+    @Override public void send(String studentNumber, String resetToken) {
+        log.warn("Password recovery requested but no verified delivery provider is configured");
     }
 }

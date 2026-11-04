@@ -20,5 +20,6 @@ public class AuthSession {
     public AuthSession(String tokenHash, User user, Instant expiresAt) {
         this.tokenHash = tokenHash; this.user = user; this.expiresAt = expiresAt;
     }
+    public User getUser() { return user; }
     public boolean isExpired(Instant now) { return !expiresAt.isAfter(now); }
 }
