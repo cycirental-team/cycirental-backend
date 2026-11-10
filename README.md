@@ -152,6 +152,16 @@ http://127.0.0.1:8080
 }
 ```
 
+로그인은 `studentNumber`와 `password`를 보냅니다. 이전 프론트의 `loginId`·`email` 요청 형식은 현재 계약과 다르며 필수 학번·전화번호가 빠지면 400으로 응답합니다.
+
+```json
+{"studentNumber":"20260001","password":"safe-password"}
+```
+
+`displayName`은 API 필드명이며 DB의 기존 `users.user_name` 컬럼에 저장됩니다. `studentNumber`는 `student_number`, `phoneNumber`는 `phone_number`에 저장하고 기존 이메일 데이터는 보존합니다. 일반 가입은 학생 권한으로 생성하며 비밀번호는 해시로 저장합니다.
+
+Android Medium Phone에서 로컬 백엔드에 접근할 때 프론트 공용 기본값은 `http://10.0.2.2:8080`이고 백엔드 기본 포트는 8080입니다. 배포 서버의 8081 포트는 별도 실행 설정이며, 배포 포트에 맞춘다고 로컬 기본값을 함께 바꾸지 않습니다. 다른 주소는 프론트의 로컬 `API_BASE_URL` 설정으로만 전달합니다.
+
 로그인 응답의 `accessToken`은 이후 보호 API 호출 시 다음과 같이 보냅니다.
 
 ```text
@@ -269,6 +279,22 @@ $env:DB_PASSWORD = "팀에서 받은 비밀번호"
 Spring Boot는 `.env` 파일을 자동으로 읽지 않습니다.
 
 환경 변수는 현재 PowerShell 세션 또는 IntelliJ 실행 설정을 통해 전달합니다.
+
+#### IntelliJ에서 원격 DB로 실행하기
+
+백엔드 폴더에서 다음 설정 도구를 실행합니다. 호스트·포트·DB 이름·사용자와 비밀번호는 창에서 입력하며 비밀번호는 가려집니다.
+
+```powershell
+.\tool\configure_mariadb.cmd
+```
+
+도구는 이 PC에만 사용하는 `.run/DeptRental_MariaDB.local.run.xml` 실행 설정을 만듭니다. 이 파일과 `.env`는 Git에서 제외됩니다. 비밀번호는 이 로컬 실행 설정에 저장되므로 해당 파일을 공유하지 않습니다.
+
+IntelliJ 상단에서 **DeptRental - MariaDB (local 8080)**을 선택합니다. 기존 8080 백엔드를 Stop한 뒤 새 설정으로 Run합니다. 새 설정이 보이지 않으면 File → Reload All from Disk로 프로젝트 파일을 새로 읽습니다.
+
+이 실행 설정은 `mariadb` 프로필과 DB 환경 변수를 적용하고 로컬 API 포트는 8080을 유지합니다. 따라서 Android Medium Phone의 프론트 기본 주소 `http://10.0.2.2:8080`은 바꿀 필요가 없습니다. 백엔드가 PC의 8080에서 요청을 받고 원격 MariaDB에 저장합니다.
+
+기본 **DeptRentalApiApplication** 실행 항목과 Maven 테스트는 여전히 H2를 사용할 수 있습니다. 가입 성공 여부만 보지 말고, 실행 프로필과 연결 DB가 의도한 MariaDB인지 확인합니다. H2에 가입했던 계정이 원격 DB로 자동 복사되지는 않습니다. 원격 프로필은 기존과 같이 Flyway 비활성화·`ddl-auto: none`을 유지해 테이블을 자동 변경하지 않습니다.
 
 실제 DB 주소, 계정 및 비밀번호는 GitHub에 Commit하지 않습니다.
 
