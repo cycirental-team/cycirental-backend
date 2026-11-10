@@ -56,7 +56,10 @@ class AccountRecoveryIntegrationTest {
         assertStatus(403,()->auth.processRecovery(student.accessToken(),id,true,true));
         assertStatus(400,()->auth.processRecovery(admin.accessToken(),id,true,false));
         var temporary=auth.processRecovery(admin.accessToken(),id,true,true);
-        assertFalse(temporary.temporaryPassword().isBlank());
+        assertEquals(10,temporary.temporaryPassword().length());
+        assertTrue(temporary.temporaryPassword().matches("[A-HJKMNP-Z2-9]+"));
+        assertEquals(43,admin.accessToken().length());
+        assertNotEquals(temporary.temporaryPassword(),users.findByStudentNumber("20261004").orElseThrow().getPasswordHash());
         assertTrue(temporary.expiresAt().isAfter(Instant.now()));
         assertStatus(409,()->auth.processRecovery(admin.accessToken(),id,true,true));
         assertStatus(401,()->auth.login(new LoginRequest("20261004","password123")));
