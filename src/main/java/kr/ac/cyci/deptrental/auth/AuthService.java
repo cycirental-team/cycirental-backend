@@ -76,7 +76,7 @@ public class AuthService {
         TemporaryPassword result=null;
         if(approve) {
             User user=users.lockByStudentNumber(request.getUser().getStudentNumber()).orElseThrow();
-            String password=tokens.create();
+            String password=tokens.createTemporaryPassword();
             Instant expiry=Instant.now().plus(1,ChronoUnit.DAYS);
             user.issueTemporaryPassword(passwords.hash(password),expiry);
             sessions.deleteByUser(user);

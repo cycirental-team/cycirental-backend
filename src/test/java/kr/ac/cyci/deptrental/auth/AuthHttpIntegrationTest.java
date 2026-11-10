@@ -69,6 +69,43 @@ class AuthHttpIntegrationTest {
     org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     @Test
+    void legacyFrontendPayloadIsRejectedAndFourFieldSignupMapsToExistingColumns() throws Exception {
+        long before = jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class);
+        var legacy = post("/api/auth/signup", """
+            {"loginId":"old_student","email":"unused@example.invalid","displayName":"기존 화면","password":"password123"}
+            """);
+        assertEquals(400, legacy.statusCode());
+        assertTrue(legacy.body().contains("학번을 입력해 주세요."));
+        assertTrue(legacy.body().contains("전화번호를 입력해 주세요."));
+        assertEquals(before, jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class));
+
+        var signup = post("/api/auth/signup", """
+            {"displayName":"연동 학생","studentNumber":"000202611004","password":"password123","phoneNumber":"01000000000"}
+            """);
+        assertEquals(201, signup.statusCode());
+        assertEquals(before + 1, jdbc.queryForObject("SELECT COUNT(*) FROM users", Long.class));
+        var row = jdbc.queryForMap("SELECT user_name, login_id, phone_number, password, is_admin FROM users WHERE student_number = ?", "000202611004");
+        assertEquals("연동 학생", row.get("user_name"));
+        assertEquals("000202611004", row.get("login_id"));
+        assertEquals("01000000000", row.get("phone_number"));
+        assertNotEquals("password123", row.get("password"));
+        assertEquals(false, row.get("is_admin"));
+
+        var oldLogin = post("/api/auth/login", """
+            {"loginId":"000202611004","password":"password123"}
+            """);
+        assertEquals(400, oldLogin.statusCode());
+        assertTrue(oldLogin.body().contains("학번을 입력해 주세요."));
+        var login = post("/api/auth/login", """
+            {"studentNumber":"000202611004","password":"password123"}
+            """);
+        assertEquals(200, login.statusCode());
+        assertTrue(login.body().contains("\"displayName\":\"연동 학생\""));
+        assertTrue(login.body().contains("\"studentNumber\":\"000202611004\""));
+        assertTrue(login.body().contains("\"accessToken\":"));
+    }
+
+    @Test
     void reservedAdminUsesDatabasePasswordAndCannotBeCreatedBySignup() throws Exception {
         var sql = new org.springframework.core.io.ClassPathResource("db/manual/create_reserved_admin_001.sql")
             .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
@@ -82,6 +119,64 @@ class AuthHttpIntegrationTest {
         assertEquals(401, post("/api/auth/login", "{\"studentNumber\":\"001\",\"password\":\"wrong\"}").statusCode());
         assertEquals(400, post("/api/auth/login", "{\"studentNumber\":\"002\",\"password\":\"admin\"}").statusCode());
         assertEquals(400, post("/api/auth/signup", "{\"studentNumber\":\"001\",\"password\":\"password123\",\"displayName\":\"Fake Admin\",\"phoneNumber\":\"01012345678\"}").statusCode());
+    }
+
+
+    private HttpResponse<String> postAs(String path, String json, String token) throws Exception {
+        return client.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + token)
+                .POST(HttpRequest.BodyPublishers.ofString(json)).build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String responseField(HttpResponse<String> response, String field) {
+        var matcher = java.util.regex.Pattern.compile("\"" + field + "\"\\s*:\\s*\"([^\"]+)\"").matcher(response.body());
+        assertTrue(matcher.find(), "Missing response field: " + field);
+        return matcher.group(1);
+    }
+
+    @Test
+    void rejectingAnotherResetAfterPasswordChangePreservesTheNewPassword() throws Exception {
+        assertEquals(201, post("/api/auth/signup", """
+            {"displayName":"Recovery Student","studentNumber":"20262001","password":"originalPassword123","phoneNumber":"01000000001"}
+            """).statusCode());
+        assertEquals(201, post("/api/auth/signup", """
+            {"displayName":"Recovery Admin","studentNumber":"20262002","password":"adminPassword123","phoneNumber":"01000000002"}
+            """).statusCode());
+        jdbc.update("UPDATE users SET is_admin=TRUE WHERE student_number=?", "20262002");
+        var admin = post("/api/auth/login", """
+            {"studentNumber":"20262002","password":"adminPassword123"}
+            """);
+        assertEquals(200, admin.statusCode());
+        String adminToken = responseField(admin, "accessToken");
+        String resetRequest = """
+            {"displayName":"Recovery Student","studentNumber":"20262001"}
+            """;
+        String pendingSql = "SELECT id FROM password_reset_requests WHERE user_id=(SELECT user_id FROM users WHERE student_number='20262001') AND status='PENDING'";
+        assertEquals(202, post("/api/auth/password-reset/requests", resetRequest).statusCode());
+        Long firstId = jdbc.queryForObject(pendingSql, Long.class);
+        var approved = postAs("/api/admin/password-reset-requests/" + firstId + "/approve", "{\"identityConfirmed\":true}", adminToken);
+        assertEquals(200, approved.statusCode());
+        String temporary = responseField(approved, "temporaryPassword");
+        var limited = post("/api/auth/login", "{\"studentNumber\":\"20262001\",\"password\":\"" + temporary + "\"}");
+        assertEquals(200, limited.statusCode());
+        assertTrue(limited.body().contains("\"mustChangePassword\":true"));
+        var changed = postAs("/api/auth/password/change", "{\"currentPassword\":\"" + temporary + "\",\"newPassword\":\"changedPassword456\"}", responseField(limited, "accessToken"));
+        assertEquals(200, changed.statusCode());
+        String currentLogin = "{\"studentNumber\":\"20262001\",\"password\":\"changedPassword456\"}";
+        assertEquals(200, post("/api/auth/login", currentLogin).statusCode());
+        String savedHash = jdbc.queryForObject("SELECT password FROM users WHERE student_number=?", String.class, "20262001");
+        assertEquals(202, post("/api/auth/password-reset/requests", resetRequest).statusCode());
+        Long secondId = jdbc.queryForObject(pendingSql, Long.class);
+        assertNotEquals(firstId, secondId);
+        assertEquals(200, postAs("/api/admin/password-reset-requests/" + secondId + "/reject", "{}", adminToken).statusCode());
+        assertEquals("REJECTED", jdbc.queryForObject("SELECT status FROM password_reset_requests WHERE id=?", String.class, secondId));
+        assertEquals(savedHash, jdbc.queryForObject("SELECT password FROM users WHERE student_number=?", String.class, "20262001"));
+        var loginAfterRejection = post("/api/auth/login", currentLogin);
+        assertEquals(200, loginAfterRejection.statusCode());
+        assertTrue(loginAfterRejection.body().contains("\"mustChangePassword\":false"));
+        assertEquals(401, post("/api/auth/login", "{\"studentNumber\":\"20262001\",\"password\":\"originalPassword123\"}").statusCode());
+        assertEquals(401, post("/api/auth/login", "{\"studentNumber\":\"20262001\",\"password\":\"" + temporary + "\"}").statusCode());
     }
 
 }
