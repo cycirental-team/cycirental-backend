@@ -15,6 +15,16 @@ public class TokenGenerator {
         random.nextBytes(value);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
     }
+    public String createTemporaryPassword() {
+        // Exclude ambiguous characters so the password is easier to read and type.
+        String alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+        StringBuilder password = new StringBuilder(10);
+        for (int i = 0; i < 10; i++) {
+            password.append(alphabet.charAt(random.nextInt(alphabet.length())));
+        }
+        return password.toString();
+    }
+
     public String hash(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
