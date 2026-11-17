@@ -58,4 +58,9 @@ public class Rental {
     public LocalDate getDueAt() { return dueAt; }
     public LocalDate getReturnedAt() { return returnedAt; }
     public RentalStatus getStatus() { return status; }
+
+    // 신청 취소: 상태만 "취소됨"으로 바꿈 (취소해도 되는지는 RentalService가 먼저 확인)
+    public void cancel() {
+        this.status = RentalStatus.CANCELLED;
+    }
 }
