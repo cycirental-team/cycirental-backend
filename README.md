@@ -182,7 +182,7 @@ GET http://127.0.0.1:8080/api/items/categories
 GET http://127.0.0.1:8080/api/items/1
 ```
 
-현재 구현된 API만 이 문서에 작성하며,### 대여 API
+### 대여 API
 
 로그인 후 받은 토큰을 `Authorization: Bearer {accessToken}`으로 함께 보내야 합니다.
 
@@ -209,6 +209,8 @@ GET http://127.0.0.1:8080/api/items/1
 - 신청할 때는 재고가 줄지 않고, 관리자가 승인할 때 줄어듭니다. (승인 API는 구현 예정)
 - 오류 응답의 `detail`에 화면에 보여줄 안내 문구가 들어갑니다.
 - `status` 값: `PENDING`(승인 대기), `RENTED`(대여 중), `RETURN_REQUESTED`(반납 요청), `RETURNED`(반납 완료), `REJECTED`(거절), `CANCELLED`(취소), `EXPIRED`(만료)
+
+현재 구현된 API만 이 문서에 작성하며,
 새 API가 추가되면 실제 코드와 함께 README도 수정합니다.
 
 ---
