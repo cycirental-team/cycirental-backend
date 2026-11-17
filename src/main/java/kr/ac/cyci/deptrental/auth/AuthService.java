@@ -47,7 +47,7 @@ public class AuthService {
                 if(!recovery.existsByUserAndStatus(user,"PENDING")) recovery.save(new AccountRecoveryRequest(user));
             });
     }
-    private User authenticate(String token) {
+    public User authenticate(String token) {
         if(token==null || token.isBlank()) throw error(HttpStatus.UNAUTHORIZED,"다시 로그인해 주세요.");
         AuthSession session=sessions.findByTokenHash(tokens.hash(token))
             .filter(s -> !s.isExpired(Instant.now()))
@@ -56,7 +56,7 @@ public class AuthService {
         if(user.temporaryPasswordExpired(Instant.now())) throw error(HttpStatus.UNAUTHORIZED,"임시 비밀번호가 만료되었습니다.");
         return user;
     }
-    private User requireAdmin(String token) {
+    public User requireAdmin(String token) {
         User user=authenticate(token);
         if(!user.isAdmin() || user.mustChangePassword()) throw error(HttpStatus.FORBIDDEN,"관리자 권한과 비밀번호 변경 완료가 필요합니다.");
         return user;
