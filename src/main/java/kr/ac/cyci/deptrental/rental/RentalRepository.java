@@ -18,6 +18,9 @@ public interface RentalRepository extends JpaRepository<Rental, Long> {
     // 같은 학생이 같은 물품을 이미 그 상태로 갖고 있는지 (중복 신청 막기용)
     boolean existsByUserIdAndItemIdAndStatus(Long userId, Long itemId, RentalStatus status);
 
+    // Inventory with a rental record must remain available for historical records and FK integrity.
+    boolean existsByItemId(Long itemId);
+
     // 이 학생의 신청 중 반납 예정일이 오늘이거나 지난 것을 from 상태 → to 상태로 한 번에 바꿈
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update Rental r set r.status = :to where r.userId = :userId and r.status = :from and r.dueAt <= :today")
