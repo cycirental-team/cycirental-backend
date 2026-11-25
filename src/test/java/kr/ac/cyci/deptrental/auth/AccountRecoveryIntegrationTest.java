@@ -31,12 +31,13 @@ class AccountRecoveryIntegrationTest {
         assertEquals(status,assertThrows(ResponseStatusException.class,action::run).getStatusCode().value());
     }
     @Test void pendingRequestsAreDeduplicatedAndUnknownAccountsAreNotExposed() {
+        long before=requests.count(); // 다른 테스트가 이미 남긴 요청 수 (실행 순서와 상관없게)
         account("20261001",false);
         auth.requestPasswordReset(new PasswordResetRequest("학생 이름","20261001"));
         auth.requestPasswordReset(new PasswordResetRequest("학생 이름","20261001"));
         auth.requestPasswordReset(new PasswordResetRequest("다른 이름","20261001"));
         auth.requestPasswordReset(new PasswordResetRequest("없는 학생","20269999"));
-        assertEquals(1,requests.count());
+        assertEquals(before+1,requests.count());
     }
     @Test void adminAuthorizationRejectsMissingStudentAndExpiredTokens() {
         var student=account("20261002",false);

@@ -98,7 +98,7 @@ public class RentalService {
         expireOverdue(user);            // ② 기한 지난 신청은 여기서 먼저 만료로 확정
 
         return writeTx.execute(status -> { // ③
-            Rental rental = rentals.findById(rentalId)
+            Rental rental = rentals.lockById(rentalId) // 이 신청을 잠금 (관리자 승인·거절과 동시에 와도 하나만 처리)
                     .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "대여 신청을 찾을 수 없습니다."));
 
             if (!rental.getUserId().equals(user.getId())) {
