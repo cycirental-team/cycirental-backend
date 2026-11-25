@@ -8,9 +8,11 @@ import kr.ac.cyci.deptrental.auth.UserRepository;
 import kr.ac.cyci.deptrental.item.Item;
 import kr.ac.cyci.deptrental.item.ItemRepository;
 import kr.ac.cyci.deptrental.rental.dto.AdminRentalResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 // 관리자용 대여 기능 (학생용 RentalService와 같은 방식으로 단계마다 트랜잭션을 나눔)
 //   ① 관리자 확인 → ② 만료 처리(바로 저장) → ③ 조회·처리
@@ -21,7 +23,7 @@ public class AdminRentalService {
     private final UserRepository users;
     private final AuthService auth;
 
-    private final TransactionTemplate writeTx; // 저장용 (만료 처리)
+    private final TransactionTemplate writeTx; // 저장용 (만료 처리, 승인)
     private final TransactionTemplate readTx;  // 조회용 (readOnly)
 
     public AdminRentalService(RentalRepository rentals, ItemRepository items, UserRepository users,
@@ -49,6 +51,27 @@ public class AdminRentalService {
         });
     }
 
+
+    public AdminRentalResponse approve(String token, Long rentalId) {
+        auth.requireAdmin(token); // ①
+        expireOverdue();          // ② 기한 지난 신청은 먼저 만료로 확정 (만료된 신청은 승인 안 됨)
+
+        return writeTx.execute(tx -> { // ③ 잠금부터 저장까지 한 트랜잭션
+            Rental rental = rentals.lockById(rentalId) // 이 신청을 잠금 (다른 관리자가 동시에 처리 못 하게)
+                    .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "대여 신청을 찾을 수 없습니다."));
+
+            if (rental.getStatus() != RentalStatus.PENDING) {
+                throw error(HttpStatus.CONFLICT, "승인 대기 중인 신청만 승인할 수 있습니다.");
+            }
+
+            if (items.decreaseAvailable(rental.getItemId()) == 0) { // 재고가 있을 때만 1 줄임
+                throw error(HttpStatus.CONFLICT, "대여 가능한 수량이 없습니다.");
+            }
+
+            rental.approve(); // 재고를 줄인 다음에 상태 변경 (재고가 없으면 여기까지 안 옴)
+            return toResponse(rental);
+        });
+    }
     // ② 앱과 같은 기준: 승인 대기인데 반납 예정일이 오늘이거나 지났으면 만료 (모든 학생 대상)
     private void expireOverdue() {
         writeTx.executeWithoutResult(tx ->
@@ -62,5 +85,8 @@ public class AdminRentalService {
         String studentName = (student == null) ? "알 수 없음" : student.getDisplayName();
         String studentNumber = (student == null) ? null : student.getStudentNumber();
         return AdminRentalResponse.of(rental, itemName, studentName, studentNumber);
+    }
+    private ResponseStatusException error(HttpStatus status, String message) {
+        return new ResponseStatusException(status, message);
     }
 }

@@ -3,6 +3,8 @@ package kr.ac.cyci.deptrental.rental;
 import java.util.List;
 import kr.ac.cyci.deptrental.rental.dto.AdminRentalResponse;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,6 +24,12 @@ public class AdminRentalController {
     public List<AdminRentalResponse> list(@RequestHeader(value = "Authorization", required = false) String header,
                                           @RequestParam(required = false) RentalStatus status) {
         return service.list(token(header), status);
+    }
+    // 대여 승인: POST /api/admin/rentals/{id}/approve
+    @PostMapping("/{id}/approve")
+    public AdminRentalResponse approve(@RequestHeader(value = "Authorization", required = false) String header,
+                                       @PathVariable Long id) {
+        return service.approve(token(header), id);
     }
 
     // "Bearer abc123" 에서 앞의 "Bearer "를 떼고 토큰(abc123)만 꺼냄

@@ -67,4 +67,8 @@ public class Rental {
     public void cancel() {
         this.status = RentalStatus.CANCELLED;
     }
+    // 관리자 승인: 상태만 "대여 중"으로 바꿈 (승인해도 되는지·재고는 AdminRentalService가 먼저 확인)
+    public void approve() {
+        this.status = RentalStatus.RENTED;
+    }
 }

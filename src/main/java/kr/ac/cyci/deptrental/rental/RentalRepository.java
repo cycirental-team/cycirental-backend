@@ -1,8 +1,11 @@
 package kr.ac.cyci.deptrental.rental;
 
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -30,4 +33,9 @@ public interface RentalRepository extends JpaRepository<Rental, Long> {
     @Query("update Rental r set r.status = :to where r.status = :from and r.dueAt <= :today")
     int changeAllOverdueStatus(@Param("today") LocalDate today,
                                @Param("from") RentalStatus from, @Param("to") RentalStatus to);
+
+    // 처리할 신청 하나를 잠그고 가져옴 (두 관리자가 동시에 같은 신청을 처리해도 한 명만 처리되게)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Rental r where r.id = :id")
+    Optional<Rental> lockById(@Param("id") Long id);
 }

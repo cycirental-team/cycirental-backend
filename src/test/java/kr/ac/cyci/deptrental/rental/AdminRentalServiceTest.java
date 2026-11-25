@@ -49,6 +49,12 @@ class AdminRentalServiceTest {
         return itemRepository.search(null, null, true).get(0).getId();
     }
 
+    // 지금 DB에 저장된 대여 가능 수량 (JPA 캐시가 아니라 DB에서 직접 읽음)
+    private int availableQuantity(Long itemId) {
+        return jdbc.queryForObject("SELECT available_quantity FROM items WHERE id = ?", Integer.class, itemId);
+    }
+
+
     // 목록에서 특정 대여 번호 찾기 (다른 테스트가 만든 데이터도 섞여 있을 수 있어서 번호로 찾음)
     private AdminRentalResponse findIn(List<AdminRentalResponse> list, Long rentalId) {
         return list.stream().filter(row -> row.id().equals(rentalId)).findFirst().orElseThrow();
@@ -107,5 +113,75 @@ class AdminRentalServiceTest {
 
         assertEquals(403, forbidden.getStatusCode().value());
         assertEquals(401, noLogin.getStatusCode().value());
+    }
+    @Test
+    @DisplayName("승인하면 대여 중이 되고 대여 가능 수량이 1 줄어든다")
+    void approveDecreasesStock() {
+        String admin = account("20269511", "관리자 테스트", true).accessToken();
+        String student = account("20269512", "대여 학생", false).accessToken();
+        Long itemId = availableItemId();
+        Long rentalId = rentalService.apply(student, new RentalRequest(itemId, LocalDate.now().plusDays(3))).id();
+        int before = availableQuantity(itemId);
+
+        AdminRentalResponse approved = adminRentalService.approve(admin, rentalId);
+
+        assertEquals(RentalStatus.RENTED, approved.status());
+        assertEquals(before - 1, availableQuantity(itemId));
+    }
+
+    @Test
+    @DisplayName("이미 승인한 신청을 또 승인하면 409, 재고는 한 번만 줄어든다")
+    void approveOnlyPending() {
+        String admin = account("20269513", "관리자 테스트", true).accessToken();
+        String student = account("20269514", "대여 학생", false).accessToken();
+        Long itemId = availableItemId();
+        Long rentalId = rentalService.apply(student, new RentalRequest(itemId, LocalDate.now().plusDays(3))).id();
+        int before = availableQuantity(itemId);
+        adminRentalService.approve(admin, rentalId);
+
+        var again = assertThrows(ResponseStatusException.class, () -> adminRentalService.approve(admin, rentalId));
+
+        assertEquals(409, again.getStatusCode().value());
+        assertEquals(before - 1, availableQuantity(itemId));
+    }
+
+    @Test
+    @DisplayName("재고가 0이면 409, 신청은 승인 대기 그대로")
+    void approveWithoutStock() {
+        String admin = account("20269515", "관리자 테스트", true).accessToken();
+        String student = account("20269516", "대여 학생", false).accessToken();
+        Long itemId = availableItemId();
+        Long rentalId = rentalService.apply(student, new RentalRequest(itemId, LocalDate.now().plusDays(3))).id();
+        jdbc.update("UPDATE items SET available_quantity = 0 WHERE id = ?", itemId); // 신청 후 재고가 다 나간 상황
+
+        var error = assertThrows(ResponseStatusException.class, () -> adminRentalService.approve(admin, rentalId));
+
+        assertEquals(409, error.getStatusCode().value());
+        assertEquals(0, availableQuantity(itemId));
+        assertEquals(RentalStatus.PENDING, rentalRepository.findById(rentalId).orElseThrow().getStatus());
+    }
+
+    @Test
+    @DisplayName("기한 지난(만료된) 신청은 승인할 수 없다")
+    void approveExpired() {
+        String admin = account("20269517", "관리자 테스트", true).accessToken();
+        AuthResponse student = account("20269518", "대여 학생", false);
+        LocalDate today = LocalDate.now();
+        Long rentalId = rentalRepository.save(new Rental(student.userId(), availableItemId(), today.minusDays(3), today)).getId();
+
+        var error = assertThrows(ResponseStatusException.class, () -> adminRentalService.approve(admin, rentalId));
+
+        assertEquals(409, error.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("학생은 승인할 수 없다 (403)")
+    void studentCannotApprove() {
+        String student = account("20269519", "대여 학생", false).accessToken();
+        Long rentalId = rentalService.apply(student, new RentalRequest(availableItemId(), LocalDate.now().plusDays(3))).id();
+
+        var error = assertThrows(ResponseStatusException.class, () -> adminRentalService.approve(student, rentalId));
+
+        assertEquals(403, error.getStatusCode().value());
     }
 }
