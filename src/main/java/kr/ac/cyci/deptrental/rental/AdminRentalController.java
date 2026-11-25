@@ -44,6 +44,13 @@ public class AdminRentalController {
         return service.reject(token(header), id, request.reason());
     }
 
+    // 반납 완료: POST /api/admin/rentals/{id}/return
+    @PostMapping("/{id}/return")
+    public AdminRentalResponse completeReturn(@RequestHeader(value = "Authorization", required = false) String header,
+                                              @PathVariable Long id) {
+        return service.completeReturn(token(header), id);
+    }
+
     // "Bearer abc123" 에서 앞의 "Bearer "를 떼고 토큰(abc123)만 꺼냄
     private static String token(String header) {
         return header != null && header.startsWith("Bearer ") ? header.substring(7) : null;

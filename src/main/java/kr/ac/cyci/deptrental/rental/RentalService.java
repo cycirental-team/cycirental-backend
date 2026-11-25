@@ -112,6 +112,25 @@ public class RentalService {
             return RentalResponse.of(rental, itemName(rental.getItemId()));
         });
     }
+    // 반납 요청: 내 대여 + 대여 중일 때만 (대여 중 → 반납 요청, 재고는 관리자가 반납 완료할 때 늘어남)
+    public RentalResponse requestReturn(String token, Long rentalId) {
+        User user = currentUser(token); // ① (만료 처리 ②는 승인 대기에만 해당돼서 여기서는 필요 없음)
+
+        return writeTx.execute(status -> { // ③
+            Rental rental = rentals.lockById(rentalId) // 이 대여를 잠금 (관리자 반납 완료와 동시에 와도 하나만 처리)
+                    .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "대여 기록을 찾을 수 없습니다."));
+
+            if (!rental.getUserId().equals(user.getId())) {
+                throw error(HttpStatus.FORBIDDEN, "본인 대여만 반납 요청할 수 있습니다.");
+            }
+            if (rental.getStatus() != RentalStatus.RENTED) {
+                throw error(HttpStatus.CONFLICT, "대여 중인 물품만 반납 요청할 수 있습니다.");
+            }
+
+            rental.requestReturn();
+            return RentalResponse.of(rental, itemName(rental.getItemId()));
+        });
+    }
 
     // ① 로그인 확인 + 임시 비밀번호 상태(비밀번호 변경 전)면 막기
     private User currentUser(String token) {

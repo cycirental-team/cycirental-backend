@@ -23,7 +23,7 @@ public class AdminRentalService {
     private final UserRepository users;
     private final AuthService auth;
 
-    private final TransactionTemplate writeTx; // 저장용 (만료 처리, 승인, 거절)
+    private final TransactionTemplate writeTx; // 저장용 (만료 처리, 승인, 거절, 반납 완료)
     private final TransactionTemplate readTx;  // 조회용 (readOnly)
 
     public AdminRentalService(RentalRepository rentals, ItemRepository items, UserRepository users,
@@ -87,6 +87,24 @@ public class AdminRentalService {
             }
 
             rental.reject(reason.trim()); // 앞뒤 공백은 빼고 저장
+            return toResponse(rental);
+        });
+    }
+
+    // 반납 완료: 반납 요청 → 반납 완료, 실제 반납일 기록, 대여 가능 수량 +1
+    public AdminRentalResponse completeReturn(String token, Long rentalId) {
+        auth.requireAdmin(token); // ① (만료 처리 ②는 승인 대기에만 해당돼서 여기서는 필요 없음)
+
+        return writeTx.execute(tx -> { // ③ 잠금부터 저장까지 한 트랜잭션
+            Rental rental = rentals.lockById(rentalId) // 이 대여를 잠금 (두 관리자가 동시에 눌러도 한 번만 처리)
+                    .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "대여 기록을 찾을 수 없습니다."));
+
+            if (rental.getStatus() != RentalStatus.RETURN_REQUESTED) {
+                throw error(HttpStatus.CONFLICT, "반납 요청된 대여만 반납 완료할 수 있습니다.");
+            }
+
+            items.increaseAvailable(rental.getItemId()); // 재고 +1 (전체 수량은 넘지 않음)
+            rental.completeReturn(LocalDate.now());      // 앱은 반납 완료 상태에 반납일이 꼭 있어야 함
             return toResponse(rental);
         });
     }

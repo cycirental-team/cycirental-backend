@@ -76,5 +76,14 @@ public class Rental {
         this.status = RentalStatus.REJECTED;
         this.rejectReason = reason;
     }
+    // 학생 반납 요청: 상태만 "반납 요청"으로 바꿈 (요청해도 되는지는 RentalService가 먼저 확인)
+    public void requestReturn() {
+        this.status = RentalStatus.RETURN_REQUESTED;
+    }
+    // 관리자 반납 완료: "반납 완료"로 바꾸고 실제 반납일을 기록 (완료해도 되는지는 AdminRentalService가 먼저 확인)
+    public void completeReturn(LocalDate returnedAt) {
+        this.status = RentalStatus.RETURNED;
+        this.returnedAt = returnedAt;
+    }
 }
 

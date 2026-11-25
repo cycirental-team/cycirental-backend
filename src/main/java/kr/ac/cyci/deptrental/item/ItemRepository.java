@@ -36,4 +36,10 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     @Modifying(flushAutomatically = true)
     @Query("update Item i set i.availableQuantity = i.availableQuantity - 1 where i.id = :id and i.availableQuantity > 0")
     int decreaseAvailable(@Param("id") Long id);
+
+    // 반납 완료용: 대여 가능 수량을 1 늘림 (전체 수량을 넘지 않을 때만)
+    // 돌려주는 값: 1 = 늘렸음, 0 = 이미 전체 수량과 같아서 안 늘림
+    @Modifying(flushAutomatically = true)
+    @Query("update Item i set i.availableQuantity = i.availableQuantity + 1 where i.id = :id and i.availableQuantity < i.totalQuantity")
+    int increaseAvailable(@Param("id") Long id);
 }
