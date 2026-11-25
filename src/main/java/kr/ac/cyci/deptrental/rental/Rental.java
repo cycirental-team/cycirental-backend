@@ -80,5 +80,10 @@ public class Rental {
     public void requestReturn() {
         this.status = RentalStatus.RETURN_REQUESTED;
     }
+    // 관리자 반납 완료: "반납 완료"로 바꾸고 실제 반납일을 기록 (완료해도 되는지는 AdminRentalService가 먼저 확인)
+    public void completeReturn(LocalDate returnedAt) {
+        this.status = RentalStatus.RETURNED;
+        this.returnedAt = returnedAt;
+    }
 }
 

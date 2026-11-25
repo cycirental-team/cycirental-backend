@@ -10,6 +10,7 @@ import kr.ac.cyci.deptrental.auth.dto.AuthResponse;
 import kr.ac.cyci.deptrental.auth.dto.LoginRequest;
 import kr.ac.cyci.deptrental.auth.dto.SignUpRequest;
 import kr.ac.cyci.deptrental.item.ItemRepository;
+import kr.ac.cyci.deptrental.rental.dto.AdminRentalResponse;
 import kr.ac.cyci.deptrental.rental.dto.RentalRequest;
 import kr.ac.cyci.deptrental.rental.dto.RentalResponse;
 import org.junit.jupiter.api.DisplayName;
@@ -101,6 +102,59 @@ class RentalReturnServiceTest {
         Long rentalId = rent(owner, admin, availableItemId());
 
         var error = assertThrows(ResponseStatusException.class, () -> rentalService.requestReturn(other, rentalId));
+
+        assertEquals(403, error.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("반납 완료하면 반납 완료 상태가 되고, 반납일이 기록되고, 재고가 대여 전으로 돌아온다")
+    void completeReturnRestoresStock() {
+        String admin = account("20269811", "관리자 테스트", true).accessToken();
+        String student = account("20269812", "대여 학생", false).accessToken();
+        Long itemId = availableItemId();
+        int stockBeforeRent = availableQuantity(itemId);
+        Long rentalId = rent(student, admin, itemId);
+        rentalService.requestReturn(student, rentalId);
+
+        AdminRentalResponse completed = adminRentalService.completeReturn(admin, rentalId);
+
+        assertEquals(RentalStatus.RETURNED, completed.status());
+        assertEquals(LocalDate.now(), completed.returnedAt());
+        assertEquals(stockBeforeRent, availableQuantity(itemId)); // 승인 때 -1, 반납 완료 때 +1
+        RentalResponse mine = rentalService.myRentals(student).get(0);
+        assertEquals(RentalStatus.RETURNED, mine.status());
+        assertEquals(LocalDate.now(), mine.returnedAt());
+    }
+
+    @Test
+    @DisplayName("반납 요청이 없는 대여나 이미 반납 완료한 대여는 반납 완료할 수 없다 (409), 재고는 한 번만 늘어난다")
+    void onlyReturnRequestedCanComplete() {
+        String admin = account("20269813", "관리자 테스트", true).accessToken();
+        String student = account("20269814", "대여 학생", false).accessToken();
+        Long itemId = availableItemId();
+        int stockBeforeRent = availableQuantity(itemId);
+        Long rentalId = rent(student, admin, itemId);
+
+        var noRequest = assertThrows(ResponseStatusException.class, () -> adminRentalService.completeReturn(admin, rentalId));
+        assertEquals(409, noRequest.getStatusCode().value());
+
+        rentalService.requestReturn(student, rentalId);
+        adminRentalService.completeReturn(admin, rentalId);
+
+        var twice = assertThrows(ResponseStatusException.class, () -> adminRentalService.completeReturn(admin, rentalId));
+        assertEquals(409, twice.getStatusCode().value());
+        assertEquals(stockBeforeRent, availableQuantity(itemId));
+    }
+
+    @Test
+    @DisplayName("학생은 반납 완료할 수 없다 (403)")
+    void studentCannotCompleteReturn() {
+        String admin = account("20269815", "관리자 테스트", true).accessToken();
+        String student = account("20269816", "대여 학생", false).accessToken();
+        Long rentalId = rent(student, admin, availableItemId());
+        rentalService.requestReturn(student, rentalId);
+
+        var error = assertThrows(ResponseStatusException.class, () -> adminRentalService.completeReturn(student, rentalId));
 
         assertEquals(403, error.getStatusCode().value());
     }

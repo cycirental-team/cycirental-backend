@@ -122,6 +122,27 @@ class AdminRentalConcurrencyTest {
             removeItem(itemId);
         }
     }
+    @Test
+    @DisplayName("같은 대여를 동시에 두 번 반납 완료하면 한 번만 처리되고 재고는 1만 늘어난다")
+    void sameReturnCompletedOnce() throws Exception {
+        String admin = login("20269708", true);
+        String student = login("20269709", false);
+        Long itemId = createItem("동시 승인 테스트 물품 D", 3);
+        try {
+            Long rentalId = rentalService.apply(student, new RentalRequest(itemId, LocalDate.now().plusDays(3))).id();
+            adminRentalService.approve(admin, rentalId);    // 재고 3 → 2
+            rentalService.requestReturn(student, rentalId);
+
+            List<Integer> results = runTogether(
+                    () -> adminRentalService.completeReturn(admin, rentalId),
+                    () -> adminRentalService.completeReturn(admin, rentalId));
+
+            assertTrue(results.contains(200) && results.contains(409), "한 번만 반납 완료돼야 해요: " + results);
+            assertEquals(3, availableQuantity(itemId));     // 2 → 3 (4가 되면 안 됨)
+        } finally {
+            removeItem(itemId);
+        }
+    }
 
     // 두 작업을 동시에 출발시키고 각각의 결과 코드를 돌려줌 (성공이면 200)
     private List<Integer> runTogether(Callable<?> first, Callable<?> second) throws Exception {
