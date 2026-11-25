@@ -43,6 +43,12 @@ public class RentalController {
                                  @PathVariable Long id) {
         return service.cancel(token(header), id);
     }
+    // 반납 요청: POST /api/rentals/{id}/return-request
+    @PostMapping("/{id}/return-request")
+    public RentalResponse requestReturn(@RequestHeader(value = "Authorization", required = false) String header,
+                                        @PathVariable Long id) {
+        return service.requestReturn(token(header), id);
+    }
 
     // "Bearer abc123" 에서 앞의 "Bearer "를 떼고 토큰(abc123)만 꺼냄
     private static String token(String header) {
