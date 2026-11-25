@@ -192,6 +192,18 @@ GET http://127.0.0.1:8080/api/items/1
 | GET | `/api/rentals/me` | 내 대여 목록 (최근 신청 순) |
 | POST | `/api/rentals/{id}/cancel` | 대여 신청 취소 (본인 신청, 승인 대기일 때만) |
 
+### 관리자 물품 관리 API
+
+관리자 권한이 있는 로그인 토큰을 `Authorization: Bearer {accessToken}`으로 보냅니다.
+
+| Method | Endpoint | 설명 |
+| --- | --- | --- |
+| POST | `/api/admin/items` | 물품 등록 |
+| PUT | `/api/admin/items/{id}` | 물품명·분류·보관 장소·수량 수정 |
+| DELETE | `/api/admin/items/{id}` | 대여 이력이 없는 물품 삭제 |
+
+등록·수정 요청은 `name`, `category`, `description`(보관 장소), `totalQuantity`, `availableQuantity`를 사용합니다. 대여 이력이 있는 물품은 기록 및 외래 키를 보호하기 위해 삭제할 수 없습니다. 수정할 때도 이미 대여 중인 수량은 유지해야 합니다.
+
 대여 신청 요청 예시:
 
 ```json
@@ -238,6 +250,7 @@ GET http://127.0.0.1:8080/api/items/1
 | 대여 신청 | 완료 | `POST /api/rentals`로 승인 대기 신청 (반납일·재고·중복 확인) |
 | 내 대여 목록 | 완료 | `GET /api/rentals/me`로 내 신청·대여 내역 조회 |
 | 대여 신청 취소 | 완료 | `POST /api/rentals/{id}/cancel`로 승인 대기 신청 취소 |
+| 관리자 물품 관리 | 완료 | 관리자만 물품 등록·수정·삭제 가능, 대여 이력 물품 삭제 차단 |
 
 관리자 승인·거절, 반납 요청·확인, 알림 API는 아직 구현 전입니다.
 Frontend의 대여·반납 기능은 아직 대여 API에 연결되지 않아 앱 내부 임시 상태로 동작합니다.
