@@ -191,6 +191,19 @@ GET http://127.0.0.1:8080/api/items/1
 | POST | `/api/rentals` | 대여 신청 (승인 대기 상태로 저장) |
 | GET | `/api/rentals/me` | 내 대여 목록 (최근 신청 순) |
 | POST | `/api/rentals/{id}/cancel` | 대여 신청 취소 (본인 신청, 승인 대기일 때만) |
+| POST | `/api/rentals/{id}/return-request` | 반납 요청 (본인 대여, 대여 중일 때만) |
+
+### 관리자 물품 관리 API
+
+관리자 권한이 있는 로그인 토큰을 `Authorization: Bearer {accessToken}`으로 보냅니다.
+
+| Method | Endpoint | 설명 |
+| --- | --- | --- |
+| POST | `/api/admin/items` | 물품 등록 |
+| PUT | `/api/admin/items/{id}` | 물품명·분류·보관 장소·수량 수정 |
+| DELETE | `/api/admin/items/{id}` | 대여 이력이 없는 물품 삭제 |
+
+등록·수정 요청은 `name`, `category`, `description`(보관 장소), `totalQuantity`, `availableQuantity`를 사용합니다. 대여 이력이 있는 물품은 기록 및 외래 키를 보호하기 위해 삭제할 수 없습니다. 수정할 때도 이미 대여 중인 수량은 유지해야 합니다.
 
 대여 신청 요청 예시:
 
@@ -210,6 +223,7 @@ GET http://127.0.0.1:8080/api/items/1
 - 임시 비밀번호로 로그인해 비밀번호를 아직 바꾸지 않았으면 403으로 응답합니다.
 - 신청할 때는 재고가 줄지 않고, 관리자가 승인할 때 1 줄어듭니다.
 - 거절된 신청은 `rejectReason`에 거절 사유가 들어갑니다. (그 외에는 `null`)
+- 반납 요청을 해도 재고는 늘지 않고, 관리자가 반납 완료할 때 1 늘어납니다.
 - 오류 응답의 `detail`에 화면에 보여줄 안내 문구가 들어갑니다.
 - `status` 값: `PENDING`(승인 대기), `RENTED`(대여 중), `RETURN_REQUESTED`(반납 요청), `RETURNED`(반납 완료), `REJECTED`(거절), `CANCELLED`(취소), `EXPIRED`(만료)
 
@@ -223,6 +237,7 @@ GET http://127.0.0.1:8080/api/items/1
 | GET | `/api/admin/rentals?status=PENDING` | 상태별 대여 목록 (`status`는 위 상태값 중 하나, 대문자) |
 | POST | `/api/admin/rentals/{id}/approve` | 대여 승인 (승인 대기 → 대여 중, 대여 가능 수량 1 감소) |
 | POST | `/api/admin/rentals/{id}/reject` | 대여 거절 (승인 대기 → 거절, 거절 사유 저장) |
+| POST | `/api/admin/rentals/{id}/return` | 반납 완료 (반납 요청 → 반납 완료, 반납일 기록, 대여 가능 수량 1 증가) |
 
 거절 요청 예시:
 
@@ -230,7 +245,7 @@ GET http://127.0.0.1:8080/api/items/1
 {"reason": "수량 부족"}
 ```
 
-응답 예시 (목록의 한 건, 승인·거절의 응답):
+응답 예시 (목록의 한 건, 승인·거절·반납 완료의 응답):
 
 ```json
 {"id":12,"itemId":7,"itemName":"VR 기기","studentName":"홍길동","studentNumber":"20260001","rentedAt":"2026-11-24","dueAt":"2026-12-01","returnedAt":null,"status":"PENDING","rejectReason":null}
@@ -240,6 +255,8 @@ GET http://127.0.0.1:8080/api/items/1
 - 승인·거절은 승인 대기 신청만 가능합니다. 이미 승인·거절·취소·만료된 신청은 409로 응답합니다.
 - 대여 가능 수량이 0인 물품은 승인할 수 없습니다. (409)
 - 같은 신청을 동시에 처리하거나 마지막 1개를 동시에 승인해도 한 건만 처리됩니다.
+- 반납 완료는 반납 요청 상태인 대여만 가능합니다. 반납 요청 전이거나 이미 완료된 대여는 409로 응답합니다.
+- 반납 완료하면 `returnedAt`에 반납일이 기록됩니다. (`RETURNED` 상태에는 항상 값이 있습니다)
 - 거절 사유는 1~300자이며, 비었거나 300자를 넘으면 400으로 응답합니다.
 - `status` 값이 틀리면 400으로 응답합니다.
 
@@ -269,11 +286,14 @@ GET http://127.0.0.1:8080/api/items/1
 | 대여 신청 | 완료 | `POST /api/rentals`로 승인 대기 신청 (반납일·재고·중복 확인) |
 | 내 대여 목록 | 완료 | `GET /api/rentals/me`로 내 신청·대여 내역 조회 |
 | 대여 신청 취소 | 완료 | `POST /api/rentals/{id}/cancel`로 승인 대기 신청 취소 |
+| 관리자 물품 관리 | 완료 | 관리자만 물품 등록·수정·삭제 가능, 대여 이력 물품 삭제 차단 |
 | 관리자 대여 목록 | 완료 | `GET /api/admin/rentals`로 전체·상태별 조회 (학생 이름·학번 포함) |
 | 대여 승인 | 완료 | `POST /api/admin/rentals/{id}/approve`로 승인, 대여 가능 수량 1 감소 |
 | 대여 거절 | 완료 | `POST /api/admin/rentals/{id}/reject`로 거절, 거절 사유 저장 |
+| 반납 요청 | 완료 | `POST /api/rentals/{id}/return-request`로 대여 중 → 반납 요청 |
+| 반납 완료 | 완료 | `POST /api/admin/rentals/{id}/return`으로 반납일 기록, 대여 가능 수량 1 증가 |
 
-반납 요청·확인, 알림 API는 아직 구현 전입니다.
+알림 API는 아직 구현 전입니다.
 Frontend의 대여·반납 기능은 아직 대여 API에 연결되지 않아 앱 내부 임시 상태로 동작합니다.
 
 
