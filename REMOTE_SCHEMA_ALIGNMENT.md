@@ -50,6 +50,7 @@ SHOW CREATE TABLE rentals;
 | 2 | [add_admin_password_recovery.sql](src/main/resources/db/manual/add_admin_password_recovery.sql) | 임시 비밀번호 컬럼·초기화 요청 테이블이 없는 경우 |
 | 3 | [add_signup_phone_number.sql](src/main/resources/db/manual/add_signup_phone_number.sql) | 전화번호 컬럼이 없는 경우 |
 | 4 | [create_reserved_admin_001.sql](src/main/resources/db/manual/create_reserved_admin_001.sql) | 001 CHECK 예외와 관리자 계정이 필요한 경우 |
+| 5 | [create_notices.sql](src/main/resources/db/manual/create_notices.sql) | 공지사항 기능을 원격 MariaDB에 배포하는 경우 |
 
 `password_reset_requests.user_id`와 `processed_by`는 실제 `users.user_id`와 같은 타입이어야 합니다. signed/unsigned도 맞춥니다.
 `create_reserved_admin_001.sql`의 CHECK 교체 구문은 기존 CHECK 이름이 실제로 `ck_users_student_number`인지 확인한 뒤 실행합니다. 이미 최종 CHECK가 있으면 교체를 건너뛰고 INSERT 필요 여부만 확인합니다.
