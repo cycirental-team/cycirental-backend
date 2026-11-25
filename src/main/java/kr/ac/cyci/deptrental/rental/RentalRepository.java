@@ -1,8 +1,11 @@
 package kr.ac.cyci.deptrental.rental;
 
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,4 +23,19 @@ public interface RentalRepository extends JpaRepository<Rental, Long> {
     @Query("update Rental r set r.status = :to where r.userId = :userId and r.status = :from and r.dueAt <= :today")
     int changeOverdueStatus(@Param("userId") Long userId, @Param("today") LocalDate today,
                             @Param("from") RentalStatus from, @Param("to") RentalStatus to);
+
+    // 관리자 목록: 전체 / 상태별 (최근 신청이 위로)
+    List<Rental> findAllByOrderByIdDesc();
+    List<Rental> findByStatusOrderByIdDesc(RentalStatus status);
+
+    // 모든 학생의 신청 중 반납 예정일이 오늘이거나 지난 것을 from 상태 → to 상태로 한 번에 바꿈 (관리자 화면용)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update Rental r set r.status = :to where r.status = :from and r.dueAt <= :today")
+    int changeAllOverdueStatus(@Param("today") LocalDate today,
+                               @Param("from") RentalStatus from, @Param("to") RentalStatus to);
+
+    // 처리할 신청 하나를 잠그고 가져옴 (두 관리자가 동시에 같은 신청을 처리해도 한 명만 처리되게)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select r from Rental r where r.id = :id")
+    Optional<Rental> lockById(@Param("id") Long id);
 }

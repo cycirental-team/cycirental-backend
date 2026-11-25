@@ -40,6 +40,9 @@ public class Rental {
     @Column(nullable = false, length = 30)
     private RentalStatus status;
 
+    @Column(name = "reject_reason", length = 300)
+    private String rejectReason; // 거절 사유 (거절된 경우만 값이 있음)
+
     protected Rental() {}
 
     // 새 대여 신청: 처음엔 항상 "승인 대기"
@@ -58,9 +61,20 @@ public class Rental {
     public LocalDate getDueAt() { return dueAt; }
     public LocalDate getReturnedAt() { return returnedAt; }
     public RentalStatus getStatus() { return status; }
+    public String getRejectReason() { return rejectReason; }
 
     // 신청 취소: 상태만 "취소됨"으로 바꿈 (취소해도 되는지는 RentalService가 먼저 확인)
     public void cancel() {
         this.status = RentalStatus.CANCELLED;
     }
+    // 관리자 승인: 상태만 "대여 중"으로 바꿈 (승인해도 되는지·재고는 AdminRentalService가 먼저 확인)
+    public void approve() {
+        this.status = RentalStatus.RENTED;
+    }
+    // 관리자 거절: "거절됨"으로 바꾸고 사유를 저장 (거절해도 되는지는 AdminRentalService가 먼저 확인)
+    public void reject(String reason) {
+        this.status = RentalStatus.REJECTED;
+        this.rejectReason = reason;
+    }
 }
+
