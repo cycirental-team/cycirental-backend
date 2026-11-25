@@ -31,10 +31,22 @@ public class Item {
 
     protected Item() {}
 
+    public Item(String name, String category, String description, int totalQuantity, int availableQuantity) {
+        update(name, category, description, totalQuantity, availableQuantity);
+    }
+
     public Long getId() { return id; }
     public String getName() { return name; }
     public String getCategory() { return category; }
     public String getDescription() { return description; }
     public int getTotalQuantity() { return totalQuantity; }
     public int getAvailableQuantity() { return availableQuantity; }
+
+    public void update(String name, String category, String description, int totalQuantity, int availableQuantity) {
+        this.name = name;
+        this.category = category;
+        this.description = description;
+        this.totalQuantity = totalQuantity;
+        this.availableQuantity = availableQuantity;
+    }
 }
