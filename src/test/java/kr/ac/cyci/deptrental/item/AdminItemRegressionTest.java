@@ -46,6 +46,10 @@ class AdminItemRegressionTest {
         } finally {
             release.countDown();
             executor.shutdownNow();
+            if (!executor.awaitTermination(15, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("작업 스레드가 종료되지 않아 테스트 물품을 안전하게 정리할 수 없습니다.");
+            }
+            tx.executeWithoutResult(s -> items.deleteById(id));
         }
     }
 }
