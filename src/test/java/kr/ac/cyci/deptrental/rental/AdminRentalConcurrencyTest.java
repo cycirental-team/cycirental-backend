@@ -96,6 +96,32 @@ class AdminRentalConcurrencyTest {
             removeItem(itemId);
         }
     }
+    @Test
+    @DisplayName("관리자 승인과 학생 취소가 동시에 오면 하나만 처리되고, 상태와 재고가 서로 맞는다")
+    void approveAndCancelTogether() throws Exception {
+        String admin = login("20269706", true);
+        String student = login("20269707", false);
+        Long itemId = createItem("동시 승인 테스트 물품 C", 3);
+        try {
+            Long rentalId = rentalService.apply(student, new RentalRequest(itemId, LocalDate.now().plusDays(3))).id();
+
+            List<Integer> results = runTogether(
+                    () -> adminRentalService.approve(admin, rentalId),
+                    () -> rentalService.cancel(student, rentalId));
+
+            assertTrue(results.contains(200) && results.contains(409), "둘 중 하나만 처리돼야 해요: " + results);
+            String status = jdbc.queryForObject("SELECT status FROM rentals WHERE id = ?", String.class, rentalId);
+            if (results.get(0) == 200) { // 승인이 먼저 처리된 경우: 대여 중, 재고 1 감소
+                assertEquals("RENTED", status);
+                assertEquals(2, availableQuantity(itemId));
+            } else {                      // 취소가 먼저 처리된 경우: 취소됨, 재고 그대로
+                assertEquals("CANCELLED", status);
+                assertEquals(3, availableQuantity(itemId));
+            }
+        } finally {
+            removeItem(itemId);
+        }
+    }
 
     // 두 작업을 동시에 출발시키고 각각의 결과 코드를 돌려줌 (성공이면 200)
     private List<Integer> runTogether(Callable<?> first, Callable<?> second) throws Exception {
