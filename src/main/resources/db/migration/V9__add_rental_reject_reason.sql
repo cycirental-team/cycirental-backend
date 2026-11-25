@@ -1,0 +1,1 @@
+ALTER TABLE rentals ADD COLUMN reject_reason VARCHAR(300) NULL;

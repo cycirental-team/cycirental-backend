@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/admin/items")
@@ -40,10 +41,11 @@ public class AdminItemController {
     }
 
     @PutMapping("/{id}")
+    @Transactional
     public Item update(@RequestHeader(value = "Authorization", required = false) String header,
                        @PathVariable Long id, @Valid @RequestBody AdminItemRequest request) {
         auth.requireAdmin(token(header));
-        Item item = items.findById(id).orElseThrow(() -> notFound(id));
+        Item item = items.lockById(id).orElseThrow(() -> notFound(id));
         int rentedCount = item.getTotalQuantity() - item.getAvailableQuantity();
         validateQuantities(request, rentedCount);
         item.update(clean(request.name()), clean(request.category()), clean(request.description()),

@@ -12,7 +12,8 @@ public record RentalResponse(
         LocalDate rentedAt,
         LocalDate dueAt,
         LocalDate returnedAt,
-        RentalStatus status) {
+        RentalStatus status,
+        String rejectReason) {
 
     public static RentalResponse of(Rental rental, String itemName) {
         return new RentalResponse(
@@ -22,6 +23,7 @@ public record RentalResponse(
                 rental.getRentedAt(),
                 rental.getDueAt(),
                 rental.getReturnedAt(),
-                rental.getStatus());
+                rental.getStatus(),
+                rental.getRejectReason());
     }
 }

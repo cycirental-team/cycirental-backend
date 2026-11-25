@@ -80,5 +80,6 @@ SHOW CREATE TABLE rentals;
 - 18:59 KST 검증: 기존 users 1 / items 5 / rentals 0 / auth_sessions 1행 보존, 새 컬럼 4개·요청 테이블 1개·외래 키 2개 확인.
 - 001 관리자 계정: 사용자 승인 후 2026-11-03 21:26 KST 생성 완료. 비밀번호는 해시로 저장했습니다. users 2 / items 5 / rentals 0 / auth_sessions 1행과 관리자 001 1건·기존 사용자 1건 보존을 확인했습니다. 새 백엔드 배포 후 실폰 로그인을 확인해야 합니다.
 - 백엔드 배포·Git 업로드: 사용자가 별도 진행.
+- 대여 거절 사유 칸: 2026-11-25 10:36 KST 백업(mariadb-dump, single transaction) 후 rentals.reject_reason VARCHAR(300) NULL 추가. 적용 전후 rentals 4행 동일, 새 칸 확인.
 
 실제 완료 시각·백업 파일 위치·변경 전후 행 수는 저장소 밖의 로컬 작업 기록에 남기고, 이 상태 항목도 실제 결과에 맞춰 갱신합니다.
