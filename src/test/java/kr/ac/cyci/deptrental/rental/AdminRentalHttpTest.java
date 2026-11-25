@@ -74,4 +74,18 @@ class AdminRentalHttpTest {
         assertEquals(400, result.statusCode());
         assertTrue(result.body().contains("요청 값을 확인해 주세요."));
     }
+    @Test
+    @DisplayName("거절 사유가 비었거나 300자를 넘으면 400 + 안내 문구")
+    void rejectReasonRule() throws Exception {
+        String admin = login("20269604", true);
+
+        var blank = send("POST", "/api/admin/rentals/1/reject", admin, "{\"reason\":\"   \"}");
+        assertEquals(400, blank.statusCode());
+        assertTrue(blank.body().contains("거절 사유를 입력해 주세요."));
+
+        var tooLong = send("POST", "/api/admin/rentals/1/reject", admin, "{\"reason\":\"" + "가".repeat(301) + "\"}");
+        assertEquals(400, tooLong.statusCode());
+        assertTrue(tooLong.body().contains("300자 이내"));
+    }
+
 }

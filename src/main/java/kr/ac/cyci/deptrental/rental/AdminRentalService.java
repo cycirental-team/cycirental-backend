@@ -23,7 +23,7 @@ public class AdminRentalService {
     private final UserRepository users;
     private final AuthService auth;
 
-    private final TransactionTemplate writeTx; // 저장용 (만료 처리, 승인)
+    private final TransactionTemplate writeTx; // 저장용 (만료 처리, 승인, 거절)
     private final TransactionTemplate readTx;  // 조회용 (readOnly)
 
     public AdminRentalService(RentalRepository rentals, ItemRepository items, UserRepository users,
@@ -51,7 +51,7 @@ public class AdminRentalService {
         });
     }
 
-
+    // 대여 승인: 승인 대기 → 대여 중, 대여 가능 수량 -1
     public AdminRentalResponse approve(String token, Long rentalId) {
         auth.requireAdmin(token); // ①
         expireOverdue();          // ② 기한 지난 신청은 먼저 만료로 확정 (만료된 신청은 승인 안 됨)
@@ -72,6 +72,25 @@ public class AdminRentalService {
             return toResponse(rental);
         });
     }
+
+    // 대여 거절: 승인 대기 → 거절, 거절 사유 저장 (재고는 그대로)
+    public AdminRentalResponse reject(String token, Long rentalId, String reason) {
+        auth.requireAdmin(token); // ①
+        expireOverdue();          // ② 기한 지난 신청은 먼저 만료로 확정 (만료된 신청은 거절 안 됨)
+
+        return writeTx.execute(tx -> { // ③ 잠금부터 저장까지 한 트랜잭션
+            Rental rental = rentals.lockById(rentalId) // 이 신청을 잠금 (승인과 거절이 동시에 눌려도 하나만 처리)
+                    .orElseThrow(() -> error(HttpStatus.NOT_FOUND, "대여 신청을 찾을 수 없습니다."));
+
+            if (rental.getStatus() != RentalStatus.PENDING) {
+                throw error(HttpStatus.CONFLICT, "승인 대기 중인 신청만 거절할 수 있습니다.");
+            }
+
+            rental.reject(reason.trim()); // 앞뒤 공백은 빼고 저장
+            return toResponse(rental);
+        });
+    }
+
     // ② 앱과 같은 기준: 승인 대기인데 반납 예정일이 오늘이거나 지났으면 만료 (모든 학생 대상)
     private void expireOverdue() {
         writeTx.executeWithoutResult(tx ->
@@ -86,6 +105,7 @@ public class AdminRentalService {
         String studentNumber = (student == null) ? null : student.getStudentNumber();
         return AdminRentalResponse.of(rental, itemName, studentName, studentNumber);
     }
+
     private ResponseStatusException error(HttpStatus status, String message) {
         return new ResponseStatusException(status, message);
     }

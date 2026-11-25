@@ -184,4 +184,44 @@ class AdminRentalServiceTest {
 
         assertEquals(403, error.getStatusCode().value());
     }
+    @Test
+    @DisplayName("거절하면 거절됨이 되고 사유가 저장되며, 재고는 그대로이고 학생 목록에도 사유가 보인다")
+    void rejectSavesReason() {
+        String admin = account("20269521", "관리자 테스트", true).accessToken();
+        String student = account("20269522", "대여 학생", false).accessToken();
+        Long itemId = availableItemId();
+        Long rentalId = rentalService.apply(student, new RentalRequest(itemId, LocalDate.now().plusDays(3))).id();
+        int before = availableQuantity(itemId);
+
+        AdminRentalResponse rejected = adminRentalService.reject(admin, rentalId, "  수량 부족  ");
+
+        assertEquals(RentalStatus.REJECTED, rejected.status());
+        assertEquals("수량 부족", rejected.rejectReason()); // 앞뒤 공백은 빠짐
+        assertEquals(before, availableQuantity(itemId));
+        assertEquals("수량 부족", rentalService.myRentals(student).get(0).rejectReason());
+    }
+
+    @Test
+    @DisplayName("이미 승인한 신청은 거절할 수 없다 (409)")
+    void rejectOnlyPending() {
+        String admin = account("20269523", "관리자 테스트", true).accessToken();
+        String student = account("20269524", "대여 학생", false).accessToken();
+        Long rentalId = rentalService.apply(student, new RentalRequest(availableItemId(), LocalDate.now().plusDays(3))).id();
+        adminRentalService.approve(admin, rentalId);
+
+        var error = assertThrows(ResponseStatusException.class, () -> adminRentalService.reject(admin, rentalId, "늦게 거절"));
+
+        assertEquals(409, error.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("학생은 거절할 수 없다 (403)")
+    void studentCannotReject() {
+        String student = account("20269525", "대여 학생", false).accessToken();
+        Long rentalId = rentalService.apply(student, new RentalRequest(availableItemId(), LocalDate.now().plusDays(3))).id();
+
+        var error = assertThrows(ResponseStatusException.class, () -> adminRentalService.reject(student, rentalId, "사유"));
+
+        assertEquals(403, error.getStatusCode().value());
+    }
 }

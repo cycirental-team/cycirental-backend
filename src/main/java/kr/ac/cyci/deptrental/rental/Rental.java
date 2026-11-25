@@ -71,4 +71,10 @@ public class Rental {
     public void approve() {
         this.status = RentalStatus.RENTED;
     }
+    // 관리자 거절: "거절됨"으로 바꾸고 사유를 저장 (거절해도 되는지는 AdminRentalService가 먼저 확인)
+    public void reject(String reason) {
+        this.status = RentalStatus.REJECTED;
+        this.rejectReason = reason;
+    }
 }
+
